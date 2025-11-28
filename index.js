@@ -6,10 +6,12 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs-extra";
 import { createBaileysConnection, logoutSession } from "./lib/connection.js";
-import { sessions, getAllSessions, restoreSessions } from "./lib/session.js";
+import { sessions } from "./lib/session.js";
+import { getAllSessions as dbGetAllSessions } from './lib/database/sessions.js';
 import { generatePairingCode } from "./lib/pairing.js";
 import config from "./config.js";
 import cache from "./lib/cache.js";
+import manager from "./lib/manager.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +58,27 @@ async function initializeSessions() {
     const baseDir = path.join(__dirname, "auth");
     await fs.ensureDir(baseDir);
 
+    // Ensure DB sessions are reflected on disk so multi-file auth can load
+    try {
+      const dbSessions = await dbGetAllSessions();
+      for (const s of dbSessions) {
+        const number = String(s.number);
+        const authDir = path.join(baseDir, number);
+        const credsPath = path.join(authDir, 'creds.json');
+        try {
+          await fs.ensureDir(authDir);
+          // If creds.json missing, write creds from DB
+          if (!(await fs.pathExists(credsPath)) && s.creds) {
+            await fs.writeJSON(credsPath, s.creds, { spaces: 2 });
+          }
+        } catch (e) {
+          console.warn(`⚠️ Failed to materialize DB session ${number} to disk:`, e.message);
+        }
+      }
+    } catch (e) {
+      // ignore DB read errors
+    }
+
     // Get all session folders
     const folders = await fs.readdir(baseDir);
     const sessionNumbers = folders.filter((f) =>
@@ -92,7 +115,7 @@ async function initializeSessions() {
       }
     }
 
-    console.log(`✅ Initialization complete. ${sessions.size} sessions active.`);
+    console.log(`✅ Initialization complete.  sessions active.`);
   } catch (err) {
     console.error("❌ initializeSessions() failed:", err);
   }
@@ -107,6 +130,20 @@ app.get("/", (req, res) => {
     timestamp: new Date().toISOString(),
     activeSessions: activeSessions.length,
     sessions: activeSessions,
+  });
+});
+
+app.get("/status", (req, res) => {
+  const activeSessions = Array.from(sessions.entries()).map(([sessionId, data]) => ({
+    sessionId,
+    botNumber: data?.botNumber || "Unknown",
+  }));
+
+  res.json({
+    success: true,
+    activeSessions: activeSessions.length,
+    sessions: activeSessions,
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -126,12 +163,6 @@ app.get("/pair", async (req, res) => {
 
     const sessionId = number.replace(/[^0-9]/g, "");
 
-    if (sessions.has(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Session already exists for this number",
-      });
-    }
 
     const pairingCode = await generatePairingCode(sessionId, number);
 
@@ -167,13 +198,16 @@ app.get("/logout", async (req, res) => {
 
     const sessionId = number.replace(/[^0-9]/g, "");
 
+    console.log(`🚪 /logout initiated for ${sessionId}`);
     const success = await logoutSession(sessionId);
     if (success) {
+      console.log(`✅ /logout completed for ${sessionId}`);
       res.json({
         success: true,
         message: `Session ${sessionId} logged out successfully`,
       });
     } else {
+      console.warn(`⚠️ /logout: Session ${sessionId} not found or already logged out`);
       res.status(404).json({
         success: false,
         message: "Session not found",
@@ -186,22 +220,6 @@ app.get("/logout", async (req, res) => {
       message: error.message,
     });
   }
-});
-
-/**
- * Status endpoint
- */
-app.get("/status", (req, res) => {
-  const activeSessions = Array.from(sessions.keys()).map((id) => ({
-    sessionId: id,
-    botNumber: sessions.get(id)?.botNumber || "Unknown",
-  }));
-
-  res.json({
-    success: true,
-    activeSessions: activeSessions.length,
-    sessions: activeSessions,
-  });
 });
 
 /**
@@ -225,8 +243,8 @@ app.get("/reconnect", async (req, res) => {
     await new Promise((r) => setTimeout(r, 1000));
 
     // Reconnect
-    const conn = await createBaileysConnection(sessionId);
-    if (conn) {
+    const sock = await createBaileysConnection(sessionId);
+    if (sock) {
       res.json({
         success: true,
         message: `Session ${sessionId} reconnected successfully`,
