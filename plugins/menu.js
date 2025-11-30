@@ -1,8 +1,8 @@
 import os from "os";
-import { Module, commands } from "../lib/plugins.js";
-import { getRandomPhoto } from "./bin/menu_img.js";
-import config from "../config.js";
-import cache from "../lib/cache.js";
+import { Module, commands } from '../lib/plugins.js';
+import { getRandomPhoto } from './bin/menu_img.js';
+import config from '../config.js';
+import cache from '../lib/cache.js';
 
 const name = "X-kira ━ 𝐁𝕺𝐓";
 const MENU_CACHE_KEY = "menu:grouped_commands";

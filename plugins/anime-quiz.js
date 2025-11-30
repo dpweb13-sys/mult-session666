@@ -1,5 +1,5 @@
-const { Module } = require('../lib/plugins');
-const { Quiz } = require('anime-quiz');
+import { Module } from '../lib/plugins.js';
+import { Quiz } from 'anime-quiz';
 const game = new Map();
 
 Module({

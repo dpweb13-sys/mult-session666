@@ -1,7 +1,7 @@
-const { Module } = require("../lib/plugins");
-const { personalDB } = require("../lib/database");
-const config = require("../config");
-const { getTheme } = require("../Themes/themes");
+import { Module } from '../lib/plugins.js';
+import { personalDB } from '../lib/database/index.js';
+import config from '../config.js';
+import { getTheme } from '../Themes/themes.js';
 const theme = getTheme();
 
 // 🔹 Auto Status Seen

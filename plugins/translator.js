@@ -1,5 +1,5 @@
-const { Module } = require("../lib/plugins");
-const Translator = require("../lib/Class/translate");
+import { Module } from '../lib/plugins.js';
+import Translator from '../lib/Class/translate.js';
 
 Module({
   command: "trt",

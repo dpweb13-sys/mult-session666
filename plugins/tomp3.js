@@ -1,8 +1,8 @@
-const { Module } = require('../lib/plugins')
-const fs = require('fs')
-const ffmpeg = require('fluent-ffmpeg')
-const path = require('path')
-const os = require('os');
+import { Module } from '../lib/plugins.js';
+import fs from 'fs';
+import ffmpeg from 'fluent-ffmpeg';
+import path from 'path';
+import os from 'os';
 
 Module({
   command: "tomp3",

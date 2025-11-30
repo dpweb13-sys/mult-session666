@@ -1,5 +1,5 @@
-const { Module } = require('../lib/plugins');
-const util = require('util');
+import { Module } from '../lib/plugins.js';
+import util from 'util';
 
 Module({
   on: 'text'

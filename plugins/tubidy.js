@@ -1,6 +1,6 @@
-const { Module } = require('../lib/plugins');
-const { searchTubidy, getDetail } = require('yt-streamer')
-const fetch = require('node-fetch')
+import { Module } from '../lib/plugins.js';
+import { searchTubidy, getDetail } from 'yt-streamer';
+import fetch from 'node-fetch';
 
 Module({
   command: 'tubidy',

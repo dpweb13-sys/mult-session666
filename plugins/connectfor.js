@@ -1,4 +1,4 @@
-const { Module } = require('../lib/plugins');
+import { Module } from '../lib/plugins.js';
 const game = new Map();
 
 Module({

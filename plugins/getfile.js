@@ -1,5 +1,5 @@
-const {Module} = require('../lib/plugins');
-const fs = require("fs");
+import { Module } from '../lib/plugins.js';
+import fs from 'fs';
 
 Module({
   command: "getcmd",

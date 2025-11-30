@@ -1,6 +1,6 @@
-const axios = require("axios")
-const FormData = require("form-data")
-const { Module } = require("../lib/plugins")
+import axios from 'axios';
+import FormData from 'form-data';
+import { Module } from '../lib/plugins.js';
 
 Module({command:"ghibli",
         package:"style",

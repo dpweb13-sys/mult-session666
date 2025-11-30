@@ -1,5 +1,5 @@
-const f = require('node-fetch');
-const c = require('cheerio');
+import f from 'node-fetch';
+import * as c from 'cheerio';
 
 /*
 Diegoson 
@@ -29,4 +29,4 @@ async function instaSave(url) {
   return { JPEG: jpg, MP4: mp4, likes, comments, description, profileName, timeAgo };
 }
 
-module.exports = instaSave;
+export default instaSave;

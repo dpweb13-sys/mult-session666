@@ -1,5 +1,5 @@
-const axios = require("axios");
-const { Module } = require('../lib/plugins');
+import axios from 'axios';
+import { Module } from '../lib/plugins.js';
 
 // Milf command
 Module({

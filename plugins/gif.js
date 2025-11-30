@@ -1,6 +1,6 @@
-const { fetchGif, gifToVideo } = require("../lib/fetchGif");
-const { Module } = require("../lib/plugins");
-const axios = require("axios");
+import { fetchGif, gifToVideo } from '../lib/fetchGif.js';
+import { Module } from '../lib/plugins.js';
+import axios from 'axios';
 
 // Define reactions with their API endpoints
 const reactions = {

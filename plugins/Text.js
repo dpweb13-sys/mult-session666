@@ -1,4 +1,4 @@
-const { Module } = require('../lib/plugins');
+import { Module } from '../lib/plugins.js';
 
 // Fancy Text Generator
 Module({

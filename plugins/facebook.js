@@ -1,6 +1,6 @@
-const { Module } = require('../lib/plugins');
-const Facebook = require('../lib/Class/facebook');
-const UrlUtil = require('../lib/UrlUtil');
+import { Module } from '../lib/plugins.js';
+import Facebook from '../lib/Class/facebook.js';
+import UrlUtil from '../lib/UrlUtil.js';
 
 Module({
   command: 'fb',

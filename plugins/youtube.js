@@ -1,8 +1,8 @@
-const fs = require("fs");
-const axios = require("axios");
-const yts = require("yt-search");
-const fetch = require("node-fetch");
-const { Module } = require("../lib/plugins");
+import fs from 'fs';
+import axios from 'axios';
+import yts from 'yt-search';
+import fetch from 'node-fetch';
+import { Module } from '../lib/plugins.js';
 
 const x = "AIzaSyDLH31M0HfyB7Wjttl6QQudyBEq5x9s1Yg";
 

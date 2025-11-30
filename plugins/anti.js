@@ -1,6 +1,7 @@
 // plugin/antilink.js
-const { Module } = require("../lib/plugins");
-const { groupDB } = require("../lib/database");
+import { Module } from '../lib/plugins.js';
+import { groupDB } from '../lib/database/index.js';
+import cache from '../lib/cache.js';
 
 // Link detection patterns (broad)
 const LINK_PATTERNS = [
@@ -29,8 +30,38 @@ function extractLinks(text) {
   return Array.from(found);
 }
 
+// Helper: fast Redis-backed get/set with DB fallback (low memory, low CPU)
+async function getGroupSetting(type, jid) {
+  const key = `group:${jid}:${type}`;
+  try {
+    const cached = await cache.get(key);
+    if (cached != null) {
+      try { return JSON.parse(cached); } catch (e) { return cached; }
+    }
+  } catch (e) {}
+
+  // Fallback to persistent DB
+  try {
+    const data = await groupDB([type], { jid }, 'get').catch(() => ({}));
+    const val = data && data[type] ? data[type] : null;
+    try { await cache.set(key, typeof val === 'string' ? val : JSON.stringify(val || {}), 300); } catch (e) {}
+    return val;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function setGroupSetting(type, jid, content) {
+  const key = `group:${jid}:${type}`;
+  try {
+    await groupDB([type], { jid, content }, 'set').catch(() => null);
+  } catch (e) {}
+  try { await cache.set(key, typeof content === 'string' ? content : JSON.stringify(content), 300); } catch (e) {}
+  return true;
+}
+
 // unified violation handler: delete + warn/kick/null
-async function handleViolation(message, sender, settings, reason) {
+async function handleViolationLinks(message, sender, settings, reason) {
   const jid = message.from;
   const conn = message.conn;
 
@@ -38,7 +69,6 @@ async function handleViolation(message, sender, settings, reason) {
   try {
     await conn.sendMessage(jid, { delete: message.key });
   } catch (e) {
-    // ignore delete failure but log
     console.error("❌ Failed to delete message:", e?.message || e);
   }
 
@@ -47,22 +77,18 @@ async function handleViolation(message, sender, settings, reason) {
   const currentWarn = warns[sender] || 0;
   const maxWarn = typeof settings.warn_count === "number" ? settings.warn_count : parseInt(settings.warn_count) || 3;
 
-  // null -> only delete
   if (action === "null") return;
 
-  // warn -> increment & maybe kick
   if (action === "warn") {
     const newWarn = currentWarn + 1;
     warns[sender] = newWarn;
-    // persist warns
     try {
-      await groupDB(["link"], { jid, content: { ...settings, warns } }, "set");
+      await setGroupSetting('link', jid, { ...settings, warns });
     } catch (e) {
       console.error("❌ failed to persist warns:", e?.message || e);
     }
 
     if (newWarn >= maxWarn) {
-      // attempt kick
       try {
         await conn.groupParticipantsUpdate(jid, [sender], "remove");
         await conn.sendMessage(jid, {
@@ -70,7 +96,7 @@ async function handleViolation(message, sender, settings, reason) {
           mentions: [sender],
         });
         delete warns[sender];
-        await groupDB(["link"], { jid, content: { ...settings, warns } }, "set");
+        await setGroupSetting('link', jid, { ...settings, warns });
       } catch (e) {
         console.error("❌ Failed to remove user:", e?.message || e);
         await conn.sendMessage(jid, {
@@ -87,7 +113,6 @@ async function handleViolation(message, sender, settings, reason) {
     return;
   }
 
-  // kick action -> remove immediately
   if (action === "kick") {
     try {
       await conn.groupParticipantsUpdate(jid, [sender], "remove");
@@ -122,8 +147,7 @@ Module({
   const lower = raw.toLowerCase();
 
   // fetch existing settings (safe defaults)
-  const data = await groupDB(["link"], { jid: message.from }, "get").catch(() => ({}));
-  const current = data.link || {
+  const current = (await getGroupSetting('link', message.from)) || {
     status: "false",
     action: "null",
     not_del: [],
@@ -155,7 +179,7 @@ Module({
   // reset
   if (lower === "reset") {
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { status: "false", action: "null", not_del: [], warns: {}, warn_count: 3 } }, "set");
+    await setGroupSetting('link', message.from, { status: "false", action: "null", not_del: [], warns: {}, warn_count: 3 });
     await message.react?.("✅");
     return message.send?.("♻️ Antilink settings reset to default.");
   }
@@ -169,7 +193,7 @@ Module({
   // on/off
   if (lower === "on" || lower === "off") {
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { ...current, status: lower === "on" ? "true" : "false" } }, "set");
+    await setGroupSetting('link', message.from, { ...current, status: lower === "on" ? "true" : "false" });
     await message.react?.("✅");
     return message.send?.(`✅ Antilink ${lower === "on" ? "activated" : "deactivated"}.`);
   }
@@ -183,7 +207,7 @@ Module({
       return message.send?.("Invalid action — use: `null`, `warn`, or `kick`.");
     }
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { ...current, action: arg } }, "set");
+    await setGroupSetting('link', message.from, { ...current, action: arg });
     await message.react?.("✅");
     return message.send?.(`⚙️ Antilink action set to *${arg}*`);
   }
@@ -196,7 +220,7 @@ Module({
       return message.send?.("Provide a valid number between 1 and 20.");
     }
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { ...current, warn_count: n } }, "set");
+    await setGroupSetting('link', message.from, { ...current, warn_count: n });
     await message.react?.("✅");
     return message.send?.(`🚨 Warn-before-kick set to ${n}`);
   }
@@ -215,7 +239,7 @@ Module({
     }
     list.push(url);
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { ...current, not_del: list } }, "set");
+    await setGroupSetting('link', message.from, { ...current, not_del: list });
     await message.react?.("✅");
     return message.send?.("✅ URL added to ignore list.");
   }
@@ -233,7 +257,7 @@ Module({
       return message.send?.("URL not found in ignore list.");
     }
     await message.react?.("⏳");
-    await groupDB(["link"], { jid: message.from, content: { ...current, not_del: newList } }, "set");
+    await setGroupSetting('link', message.from, { ...current, not_del: newList });
     await message.react?.("✅");
     return message.send?.("✅ URL removed from ignore list.");
   }
@@ -257,9 +281,8 @@ Module({ on: "text" })(async (message) => {
     const text = (message.body || message.caption || "").toString().trim();
     if (!text) return;
 
-    // read group settings
-    const data = await groupDB(["link"], { jid: message.from }, "get").catch(() => ({}));
-    const settings = data.link || { status: "false", action: "null", not_del: [], warns: {}, warn_count: 3 };
+    // read group settings (fast Redis-backed)
+    const settings = (await getGroupSetting('link', message.from)) || { status: "false", action: "null", not_del: [], warns: {}, warn_count: 3 };
     if (settings.status !== "true") return;
 
     // detect links
@@ -272,7 +295,7 @@ Module({ on: "text" })(async (message) => {
     if (!filtered.length) return;
 
     // handle violation for the first offending link
-    await handleViolation(message, message.sender, settings, `sharing links: ${filtered[0]}`);
+            await handleViolationLinks(message, message.sender, settings, `sharing links: ${filtered[0]}`);
   } catch (err) {
     console.error("❌ antilink auto handler error:", err);
   }
@@ -296,7 +319,7 @@ function hasStatusMention(text) {
   return false;
 }
 
-async function handleViolation(message, sender, settings, reason) {
+async function handleViolationStatus(message, sender, settings, reason) {
   const jid = message.from;
   const conn = message.conn;
   try { await conn.sendMessage(jid, { delete: message.key }); } catch (e) {}
@@ -310,13 +333,13 @@ async function handleViolation(message, sender, settings, reason) {
   if (action === "warn") {
     const nw = current + 1;
     warns[sender] = nw;
-    await groupDB(["status"], { jid, content: { ...settings, warns } }, "set");
+    await setGroupSetting('status', jid, { ...settings, warns });
     if (nw >= maxWarn) {
       try {
         await conn.groupParticipantsUpdate(jid, [sender], "remove");
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
-        await groupDB(["status"], { jid, content: { ...settings, warns } }, "set");
+        await setGroupSetting('status', jid, { ...settings, warns });
       } catch (e) {
         await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
       }
@@ -348,8 +371,7 @@ Module({
   const raw = (match||"").trim();
   const lower = raw.toLowerCase();
 
-  const data = await groupDB(["status"], { jid: message.from }, "get").catch(() => ({}));
-  const current = data.status || { status: "false", action: "null", warns: {}, warn_count: 3 };
+  const current = (await getGroupSetting('status', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3 };
 
   if (!raw) {
     return message.send?.(
@@ -367,32 +389,32 @@ Module({
 
   if (lower === "reset") {
     await message.react?.("⏳");
-    await groupDB(["status"], { jid: message.from, content: { status: "false", action: "null", warns: {}, warn_count: 3 } }, "set");
+    await setGroupSetting('status', message.from, { status: "false", action: "null", warns: {}, warn_count: 3 });
     await message.react?.("✅");
     return message.send?.("♻️ Antistatus reset.");
   }
 
   if (lower === "on" || lower === "off") {
     await message.react?.("⏳");
-    await groupDB(["status"], { jid: message.from, content: { ...current, status: lower === "on" ? "true" : "false" } }, "set");
+    await setGroupSetting('status', message.from, { ...current, status: lower === "on" ? "true" : "false" });
     await message.react?.("✅");
     return message.send?.(`✅ Antistatus ${lower === "on" ? "activated" : "deactivated"}.`);
   }
 
   if (lower.startsWith("action")) {
-    const arg = raw.replace(/action/i,"").trim().toLowerCase();
+    const arg = raw.replace(/action/i, "").trim().toLowerCase();
     if (!["null","warn","kick"].includes(arg)) { await message.react?.("❌"); return message.send?.("Invalid action"); }
     await message.react?.("⏳");
-    await groupDB(["status"], { jid: message.from, content: { ...current, action: arg } }, "set");
+    await setGroupSetting('status', message.from, { ...current, action: arg });
     await message.react?.("✅");
     return message.send?.(`Action set to ${arg}`);
   }
 
   if (lower.startsWith("set_warn")) {
-    const n = parseInt(raw.replace(/set_warn/i,"").trim());
+    const n = parseInt(raw.replace(/set_warn/i, "").trim());
     if (isNaN(n)||n<1||n>20) { await message.react?.("❌"); return message.send?.("Invalid number"); }
     await message.react?.("⏳");
-    await groupDB(["status"], { jid: message.from, content: { ...current, warn_count: n } }, "set");
+    await setGroupSetting('status', message.from, { ...current, warn_count: n });
     await message.react?.("✅");
     return message.send?.(`Warn count set to ${n}`);
   }
@@ -407,15 +429,11 @@ Module({ on: "text" })(async (message) => {
     if (!message.isGroup) return;
     if (message.isFromMe) return;
     if (message.isAdmin) return;
-    const text = (message.body || message.caption || "").toString();
-    if (!text) return;
-
-    const data = await groupDB(["status"], { jid: message.from }, "get").catch(() => ({}));
-    const settings = data.status || { status: "false", action: "null", warns: {}, warn_count: 3 };
+    const settings = (await getGroupSetting('status', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3 };
     if (settings.status !== "true") return;
 
     if (hasStatusMention(text)) {
-      await handleViolation(message, message.sender, settings, "posting status invites/mentions");
+    await handleViolationStatus(message, message.sender, settings, "posting status invites/mentions");
     }
   } catch (e) {
     console.error("❌ antistatus handler error:", e);
@@ -438,7 +456,7 @@ function looksLikeBot(message) {
   return false;
 }
 
-async function handleViolation(message, sender, settings, reason) {
+async function handleViolationBot(message, sender, settings, reason) {
   const jid = message.from;
   const conn = message.conn;
   try { await conn.sendMessage(jid, { delete: message.key }); } catch (e) {}
@@ -453,13 +471,13 @@ async function handleViolation(message, sender, settings, reason) {
   if (action === "warn") {
     const newWarn = cur + 1;
     warns[sender] = newWarn;
-    await groupDB(["bot"], { jid, content: { ...settings, warns } }, "set");
+    await setGroupSetting('bot', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
         await conn.groupParticipantsUpdate(jid, [sender], "remove");
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
-        await groupDB(["bot"], { jid, content: { ...settings, warns } }, "set");
+        await setGroupSetting('bot', jid, { ...settings, warns });
       } catch (e) {
         await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
       }
@@ -491,8 +509,7 @@ Module({
   const raw = (match||"").trim();
   const lower = raw.toLowerCase();
 
-  const data = await groupDB(["bot"], { jid: message.from }, "get").catch(() => ({}));
-  const current = data.bot || { status: "false", action: "null", warns: {}, warn_count: 3 };
+  const current = (await getGroupSetting('bot', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3 };
   
   if (!raw) {
     return message.send?.(
@@ -510,14 +527,14 @@ Module({
 
   if (lower === "reset") {
     await message.react?.("⏳");
-    await groupDB(["bot"], { jid: message.from, content: { status: "false", action: "null", warns: {}, warn_count: 3 } }, "set");
+    await setGroupSetting('bot', message.from, { status: "false", action: "null", warns: {}, warn_count: 3 });
     await message.react?.("✅");
     return message.send?.("♻️ Antibot reset.");
   }
 
   if (lower === "on" || lower === "off") {
     await message.react?.("⏳");
-    await groupDB(["bot"], { jid: message.from, content: { ...current, status: lower === "on" ? "true" : "false" } }, "set");
+    await setGroupSetting('bot', message.from, { ...current, status: lower === "on" ? "true" : "false" });
     await message.react?.("✅");
     return message.send?.(`✅ Antibot ${lower === "on" ? "activated" : "deactivated"}.`);
   }
@@ -526,7 +543,7 @@ Module({
     const arg = raw.replace(/action/i,"").trim().toLowerCase();
     if (!["null","warn","kick"].includes(arg)) { await message.react?.("❌"); return message.send?.("Invalid action"); }
     await message.react?.("⏳");
-    await groupDB(["bot"], { jid: message.from, content: { ...current, action: arg } }, "set");
+    await setGroupSetting('bot', message.from, { ...current, action: arg });
     await message.react?.("✅");
     return message.send?.(`Action set to ${arg}`);
   }
@@ -535,7 +552,7 @@ Module({
     const n = parseInt(raw.replace(/set_warn/i,"").trim());
     if (isNaN(n)||n<1||n>20) { await message.react?.("❌"); return message.send?.("Invalid number"); }
     await message.react?.("⏳");
-    await groupDB(["bot"], { jid: message.from, content: { ...current, warn_count: n } }, "set");
+    await setGroupSetting('bot', message.from, { ...current, warn_count: n });
     await message.react?.("✅");
     return message.send?.(`Warn count set to ${n}`);
   }
@@ -551,12 +568,11 @@ Module({ on: "text" })(async (message) => {
     if (message.isFromMe) return;
     if (message.isAdmin) return;
 
-    const data = await groupDB(["bot"], { jid: message.from }, "get").catch(() => ({}));
-    const settings = data.bot || { status: "false", action: "null", warns: {}, warn_count: 3 };
+    const settings = (await getGroupSetting('bot', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3 };
     if (settings.status !== "true") return;
 
     if (looksLikeBot(message)) {
-      await handleViolation(message, message.sender, settings, "suspected bot account");
+    await handleViolationBot(message, message.sender, settings, "suspected bot account");
     }
   } catch (e) {
     console.error("❌ antibot handler error:", e);
@@ -564,7 +580,7 @@ Module({ on: "text" })(async (message) => {
 });
 
 
-async function handleViolation(message, sender, settings, reason) {
+async function handleViolationTagall(message, sender, settings, reason) {
   const jid = message.from;
   const conn = message.conn;
   const deleteMsg = async () => { try { await conn.sendMessage(jid, { delete: message.key }); } catch (e) {} };
@@ -581,13 +597,13 @@ async function handleViolation(message, sender, settings, reason) {
   if (action === "warn") {
     const newWarn = cur + 1;
     warns[sender] = newWarn;
-    await groupDB(["tagall"], { jid, content: { ...settings, warns } }, "set");
+    await setGroupSetting('tagall', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
         await conn.groupParticipantsUpdate(jid, [sender], "remove");
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
-        await groupDB(["tagall"], { jid, content: { ...settings, warns } }, "set");
+        await setGroupSetting('tagall', jid, { ...settings, warns });
       } catch (e) {
         await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
       }
@@ -619,8 +635,7 @@ Module({
   const raw = (match||"").trim();
   const lower = raw.toLowerCase();
 
-  const data = await groupDB(["tagall"], { jid: message.from }, "get").catch(() => ({}));
-  const current = data.tagall || { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 };
+  const current = (await getGroupSetting('tagall', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 };
   if (!current.threshold) current.threshold = 6;
 
   if (!raw) {
@@ -641,14 +656,14 @@ Module({
 
   if (lower === "reset") {
     await message.react?.("⏳");
-    await groupDB(["tagall"], { jid: message.from, content: { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 } }, "set");
+    await setGroupSetting('tagall', message.from, { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 });
     await message.react?.("✅");
     return message.send?.("♻️ Antitagall reset.");
   }
 
   if (lower === "on" || lower === "off") {
     await message.react?.("⏳");
-    await groupDB(["tagall"], { jid: message.from, content: { ...current, status: lower === "on" ? "true" : "false" } }, "set");
+    await setGroupSetting('tagall', message.from, { ...current, status: lower === "on" ? "true" : "false" });
     await message.react?.("✅");
     return message.send?.(`✅ Antitagall ${lower === "on" ? "activated" : "deactivated"}.`);
   }
@@ -659,7 +674,7 @@ Module({
       await message.react?.("❌"); return message.send?.("Invalid action");
     }
     await message.react?.("⏳");
-    await groupDB(["tagall"], { jid: message.from, content: { ...current, action: arg } }, "set");
+    await setGroupSetting('tagall', message.from, { ...current, action: arg });
     await message.react?.("✅");
     return message.send?.(`Action set to ${arg}`);
   }
@@ -668,7 +683,7 @@ Module({
     const n = parseInt(raw.replace(/set_warn/i,"").trim());
     if (isNaN(n)||n<1||n>20) { await message.react?.("❌"); return message.send?.("Invalid number"); }
     await message.react?.("⏳");
-    await groupDB(["tagall"], { jid: message.from, content: { ...current, warn_count: n } }, "set");
+    await setGroupSetting('tagall', message.from, { ...current, warn_count: n });
     await message.react?.("✅");
     return message.send?.(`Warn count set to ${n}`);
   }
@@ -677,7 +692,7 @@ Module({
     const n = parseInt(raw.replace(/set_threshold/i,"").trim());
     if (isNaN(n)||n<1) { await message.react?.("❌"); return message.send?.("Invalid threshold"); }
     await message.react?.("⏳");
-    await groupDB(["tagall"], { jid: message.from, content: { ...current, threshold: n } }, "set");
+    await setGroupSetting('tagall', message.from, { ...current, threshold: n });
     await message.react?.("✅");
     return message.send?.(`Threshold set to ${n} mentions`);
   }
@@ -693,8 +708,7 @@ Module({ on: "text" })(async (message) => {
     if (message.isFromMe) return;
     if (message.isAdmin) return;
 
-    const data = await groupDB(["tagall"], { jid: message.from }, "get").catch(() => ({}));
-    const settings = data.tagall || { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 };
+    const settings = (await getGroupSetting('tagall', message.from)) || { status: "false", action: "null", warns: {}, warn_count: 3, threshold: 6 };
     if (settings.status !== "true") return;
 
     // get mentions array (your message wrapper should expose this)
@@ -708,7 +722,7 @@ Module({ on: "text" })(async (message) => {
     const threshold = settings.threshold || 6;
     const relativeCheck = groupSize && Math.floor(groupSize * 0.6) <= mentionCount; // 60% of group
     if (mentionCount >= threshold || relativeCheck) {
-      await handleViolation(message, message.sender, settings, `mass mention (${mentionCount})`);
+    await handleViolationTagall(message, message.sender, settings, `mass mention (${mentionCount})`);
     }
   } catch (e) {
     console.error("❌ antitagall handler error:", e);
@@ -732,7 +746,7 @@ function findBanned(text, list) {
   return null;
 }
 
-async function handleViolation(message, sender, settings, reason) {
+async function handleViolationWord(message, sender, settings, reason) {
   const jid = message.from;
   const conn = message.conn;
   const deleteMsg = async () => {
@@ -752,7 +766,7 @@ async function handleViolation(message, sender, settings, reason) {
   if (action === "warn") {
     const newWarn = currentWarn + 1;
     warns[sender] = newWarn;
-    await groupDB(["word"], { jid, content: { ...settings, warns } }, "set");
+    await setGroupSetting('word', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
         await conn.groupParticipantsUpdate(jid, [sender], "remove");
@@ -761,7 +775,7 @@ async function handleViolation(message, sender, settings, reason) {
           mentions: [sender],
         });
         delete warns[sender];
-        await groupDB(["word"], { jid, content: { ...settings, warns } }, "set");
+        await setGroupSetting('word', jid, { ...settings, warns });
       } catch (e) {
         await conn.sendMessage(jid, {
           text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin privileges.`,
@@ -805,8 +819,7 @@ Module({
   const raw = (match || "").trim();
   const lower = raw.toLowerCase();
 
-  const data = await groupDB(["word"], { jid: message.from }, "get").catch(() => ({}));
-  const current = data.word || { status: "false", action: "null", words: [], warns: {}, warn_count: 3 };
+  const current = (await getGroupSetting('word', message.from)) || { status: "false", action: "null", words: [], warns: {}, warn_count: 3 };
   if (!Array.isArray(current.words)) current.words = [];
 
   if (!raw) {
@@ -829,7 +842,7 @@ Module({
 
   if (lower === "reset") {
     await message.react?.("⏳");
-    await groupDB(["word"], { jid: message.from, content: { status: "false", action: "null", words: [], warns: {}, warn_count: 3 } }, "set");
+    await setGroupSetting('word', message.from, { status: "false", action: "null", words: [], warns: {}, warn_count: 3 });
     await message.react?.("✅");
     return message.send?.("♻️ Antiword settings reset.");
   }
@@ -841,7 +854,7 @@ Module({
 
   if (lower === "on" || lower === "off") {
     await message.react?.("⏳");
-    await groupDB(["word"], { jid: message.from, content: { ...current, status: lower === "on" ? "true" : "false" } }, "set");
+    await setGroupSetting('word', message.from, { ...current, status: lower === "on" ? "true" : "false" });
     await message.react?.("✅");
     return message.send?.(`✅ Antiword ${lower === "on" ? "activated" : "deactivated"}.`);
   }
@@ -854,7 +867,7 @@ Module({
       return message.send?.("Invalid action. Use: null, warn, kick");
     }
     await message.react?.("⏳");
-    await groupDB(["word"], { jid: message.from, content: { ...current, action: arg } }, "set");
+    await setGroupSetting('word', message.from, { ...current, action: arg });
     await message.react?.("✅");
     return message.send?.(`⚙️ Action set to ${arg}`);
   }
@@ -866,7 +879,7 @@ Module({
       return message.send?.("Provide valid number 1-20");
     }
     await message.react?.("⏳");
-    await groupDB(["word"], { jid: message.from, content: { ...current, warn_count: n } }, "set");
+    await setGroupSetting('word', message.from, { ...current, warn_count: n });
     await message.react?.("✅");
     return message.send?.(`Warn count set to ${n}`);
   }
@@ -882,7 +895,7 @@ Module({
       return message.send?.("Word already in list");
     }
     current.words.push(word);
-    await groupDB(["word"], { jid: message.from, content: { ...current } }, "set");
+    await setGroupSetting('word', message.from, { ...current });
     await message.react?.("✅");
     return message.send?.(`✅ Word "${word}" added`);
   }
@@ -894,7 +907,7 @@ Module({
       await message.react?.("❌");
       return message.send?.("Word not found");
     }
-    await groupDB(["word"], { jid: message.from, content: { ...current, words: newWords } }, "set");
+    await setGroupSetting('word', message.from, { ...current, words: newWords });
     await message.react?.("✅");
     return message.send?.(`🗑️ Word "${word}" removed`);
   }
@@ -912,15 +925,14 @@ Module({ on: "text" })(async (message) => {
     const text = (message.body || message.caption || "").toString();
     if (!text) return;
 
-    const data = await groupDB(["word"], { jid: message.from }, "get").catch(() => ({}));
-    const settings = data.word || { status: "false", action: "null", words: [], warns: {}, warn_count: 3 };
+    const settings = (await getGroupSetting('word', message.from)) || { status: "false", action: "null", words: [], warns: {}, warn_count: 3 };
     if (settings.status !== "true") return;
 
     const list = Array.isArray(settings.words) && settings.words.length ? settings.words : defaultWords;
     const found = findBanned(text, list);
     if (!found) return;
 
-    await handleViolation(message, message.sender, settings, `using banned word: ${found}`);
+    await handleViolationWord(message, message.sender, settings, `using banned word: ${found}`);
   } catch (err) {
     console.error("❌ antiword handler error:", err);
   }

@@ -1,4 +1,4 @@
-const { Module } = require("../lib/plugins");
+import { Module } from '../lib/plugins.js';
 const channelJid = "120363400835083687@newsletter";
 const channelName = "";
 const serverMessageId = 6;

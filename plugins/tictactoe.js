@@ -1,5 +1,5 @@
-const { Module } = require('../lib/plugins');
-const TicTacToe = require('../lib/tictactoe-d');
+import { Module } from '../lib/plugins.js';
+import TicTacToe from '../lib/tictactoe-d.js';
 const games = new Map();
 
 function srt_r(boardStr) {

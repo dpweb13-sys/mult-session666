@@ -1,5 +1,5 @@
-const { Module } = require('../lib/plugins');
-const { TikTokDL } = require('yt-streamer');
+import { Module } from '../lib/plugins.js';
+import { TikTokDL } from 'yt-streamer';
 
 Module({command:'tiktok',package:'downloader',description:'Download TikTok videos'})(async(message,match)=>{
     const url=match&&match[1]?match[1].trim():null;

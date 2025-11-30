@@ -1,6 +1,6 @@
-const { Module } = require("../lib/plugins");
-const { personalDB } = require("../lib/database");
-const { getTheme } = require("../Themes/themes");
+import { Module } from '../lib/plugins.js';
+import { personalDB } from '../lib/database/index.js';
+import { getTheme } from '../Themes/themes.js';
 const theme = getTheme();
 
 // Shared defaults

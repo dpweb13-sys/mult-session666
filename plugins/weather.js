@@ -1,7 +1,7 @@
-const {Module} = require('../lib/plugins');
-var axios = require('axios')
-const cheerio = require('cheerio')
-const he = require('he')
+import { Module } from '../lib/plugins.js';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import he from 'he';
 
 Module({
   command: 'weather',

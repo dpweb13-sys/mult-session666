@@ -1,5 +1,5 @@
-const { Module } = require("../lib/plugins");
-const { getTheme } = require("../Themes/themes");
+import { Module } from '../lib/plugins.js';
+import { getTheme } from '../Themes/themes.js';
 const theme = getTheme();
 Module({
   command: "tagall",

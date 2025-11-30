@@ -1,6 +1,6 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
-const { Module } = require("../lib/plugins");
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { Module } from '../lib/plugins.js';
 
 Module({
   command: "pint",

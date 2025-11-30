@@ -1,6 +1,6 @@
-const { Module } = require("../lib/plugins");
-const config = require("../config");
-const { getTheme } = require("../Themes/themes");
+import { Module } from '../lib/plugins.js';
+import config from '../config.js';
+import { getTheme } from '../Themes/themes.js';
 const theme = getTheme();
 
 // ==================== EXTENDED OWNER MENU ====================

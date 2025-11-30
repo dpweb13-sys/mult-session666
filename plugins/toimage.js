@@ -1,12 +1,15 @@
-const { Module } = require("../lib/plugins");
-const { getTheme } = require("../Themes/themes");
-const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-const { exec } = require("child_process");
-const { promisify } = require("util");
+import { Module } from '../lib/plugins.js';
+import { getTheme } from '../Themes/themes.js';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { fileURLToPath } from 'url';
 
 const execAsync = promisify(exec);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const theme = getTheme();
 
 // 🎨 Beautiful Emojis for Image Processing
@@ -439,8 +442,14 @@ Module({
       `${IMAGE_EMOJIS.ERROR} *Reply to Sticker*\n\n${IMAGE_EMOJIS.STICKER} Please reply to a sticker message`
     );
   }
-  // Forward to toimage command
-  await require("./toimage").Module.handlers.toimage(message, "");
+  // Directly handle sticker conversion
+  try {
+    const buf = await downloadMedia(message.quoted);
+    const out = await convertStickerToImage(buf, 'png');
+    await message.send({ image: out, caption: `${IMAGE_EMOJIS.SUCCESS} Sticker converted to image` });
+  } catch (e) {
+    await message.send(`${IMAGE_EMOJIS.ERROR} Conversion failed: ${e.message}`);
+  }
 });
 
 Module({
@@ -454,8 +463,14 @@ Module({
       `${IMAGE_EMOJIS.ERROR} *Reply to Video*\n\n${IMAGE_EMOJIS.VIDEO} Please reply to a video message`
     );
   }
-  // Forward to toimage command
-  await require("./toimage").Module.handlers.toimage(message, "");
+  // Directly handle video frame extraction
+  try {
+    const buf = await downloadMedia(message.quoted);
+    const out = await extractVideoFrame(buf, '00:00:01');
+    await message.send({ image: out, caption: `${IMAGE_EMOJIS.SUCCESS} Video frame extracted` });
+  } catch (e) {
+    await message.send(`${IMAGE_EMOJIS.ERROR} Conversion failed: ${e.message}`);
+  }
 });
 
 // ==================== HELP COMMAND ====================

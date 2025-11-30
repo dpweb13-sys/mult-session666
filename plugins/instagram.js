@@ -1,5 +1,5 @@
-const { Module } = require('../lib/plugins');
-const instaSave=require('./bin/instagram')
+import { Module } from '../lib/plugins.js';
+import instaSave from './bin/instagram.js';
 
 Module({
   command:'insta',
