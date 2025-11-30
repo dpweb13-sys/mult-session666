@@ -89,6 +89,7 @@ Module({
 *┃❍ ʀᴀᴍ     :* ${ram}
 *┃❍ ᴛɪᴍᴇ    :* ${time}
 *┃❍ ᴜsᴇʀ    :* ${userName}
+*┃❍ ᴘᴀɪʀ   :* https://x-kira-bot-pair.vercel.app
 *╰═════════════════⊷*
 ${readMore}
 *♡︎•━━━━━━☻︎━━━━━━•♡︎*
