@@ -169,12 +169,6 @@ app.get("/pair", async (req, res) => {
     });
   }
 
-  if (manager.isConnecting(number)) {
-    return res.status(409).json({
-      status: "error",
-      message: "This number is already in pairing process",
-    });
-  }
     const sessionId = number.replace(/[^0-9]/g, "");
     const pairingCode = await generatePairingCode(sessionId, number);
 

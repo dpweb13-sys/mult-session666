@@ -74,8 +74,17 @@ Module({
       "💀",
     ];
     const getEmoji = () => emojis[Math.floor(Math.random() * emojis.length)];
+    // Separate admins and non-admins
+    const admins = participants.filter(p => p.admin === "admin" || p.admin === "superadmin");
+    const others = participants.filter(p => !admins.includes(p));
     let tagText = `*▢ GROUP : ${groupName}*\n*▢ MEMBERS : ${totalMembers}*\n*▢ MESSAGE : ${msgText}*\n\n*╭┈─「 ɦเ αℓℓ ƒɾเεɳ∂ร 🥰 」┈❍*\n`;
-    for (const p of participants) {
+    // Add admins first with design
+    for (const admin of admins) {
+      const roleEmoji = admin.admin === "superadmin" ? "❤️‍🩹" : "🎀";
+      tagText += `*│${roleEmoji} ᩧ𝆺ྀི𝅥* @${admin.id.split("@")[0]}\n`;
+    }
+    // Add other members with design
+    for (const p of others) {
       tagText += `*│${getEmoji()} ᩧ𝆺ྀི𝅥* @${p.id.split("@")[0]}\n`;
     }
     tagText += "*╰────────────❍*";

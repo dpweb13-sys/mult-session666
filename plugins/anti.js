@@ -90,7 +90,7 @@ async function handleViolationLinks(message, sender, settings, reason) {
 
     if (newWarn >= maxWarn) {
       try {
-        await conn.groupParticipantsUpdate(jid, [sender], "remove");
+        await message.removeParticipant([sender]);
         await conn.sendMessage(jid, {
           text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`,
           mentions: [sender],
@@ -115,7 +115,7 @@ async function handleViolationLinks(message, sender, settings, reason) {
 
   if (action === "kick") {
     try {
-      await conn.groupParticipantsUpdate(jid, [sender], "remove");
+      await message.removeParticipant([sender]);
       await conn.sendMessage(jid, {
         text: `❌ @${sender.split("@")[0]} removed for sharing links.`,
         mentions: [sender],
@@ -336,7 +336,7 @@ async function handleViolationStatus(message, sender, settings, reason) {
     await setGroupSetting('status', jid, { ...settings, warns });
     if (nw >= maxWarn) {
       try {
-        await conn.groupParticipantsUpdate(jid, [sender], "remove");
+        await message.removeParticipant([sender]);
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
         await setGroupSetting('status', jid, { ...settings, warns });
@@ -351,7 +351,7 @@ async function handleViolationStatus(message, sender, settings, reason) {
 
   if (action === "kick") {
     try {
-      await conn.groupParticipantsUpdate(jid, [sender], "remove");
+      await message.removeParticipant([sender]);
       await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed for posting status invites.`, mentions: [sender] });
     } catch (e) {
       await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
@@ -474,7 +474,7 @@ async function handleViolationBot(message, sender, settings, reason) {
     await setGroupSetting('bot', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
-        await conn.groupParticipantsUpdate(jid, [sender], "remove");
+        await message.removeParticipant([sender]);
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
         await setGroupSetting('bot', jid, { ...settings, warns });
@@ -489,7 +489,7 @@ async function handleViolationBot(message, sender, settings, reason) {
 
   if (action === "kick") {
     try {
-      await conn.groupParticipantsUpdate(jid, [sender], "remove");
+      await message.removeParticipant([sender]);
       await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed for suspected bot account.`, mentions: [sender] });
     } catch (e) {
       await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
@@ -600,7 +600,7 @@ async function handleViolationTagall(message, sender, settings, reason) {
     await setGroupSetting('tagall', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
-        await conn.groupParticipantsUpdate(jid, [sender], "remove");
+        await message.removeParticipant([sender]);
         await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`, mentions: [sender] });
         delete warns[sender];
         await setGroupSetting('tagall', jid, { ...settings, warns });
@@ -615,7 +615,7 @@ async function handleViolationTagall(message, sender, settings, reason) {
 
   if (action === "kick") {
     try {
-      await conn.groupParticipantsUpdate(jid, [sender], "remove");
+      await message.removeParticipant([sender]);
       await conn.sendMessage(jid, { text: `❌ @${sender.split("@")[0]} removed for mass tagging.`, mentions: [sender] });
     } catch (e) {
       await conn.sendMessage(jid, { text: `⚠️ Cannot remove @${sender.split("@")[0]}. Bot needs admin.`, mentions: [sender] });
@@ -662,7 +662,7 @@ async function handleViolationWord(message, sender, settings, reason) {
     await setGroupSetting('word', jid, { ...settings, warns });
     if (newWarn >= maxWarn) {
       try {
-        await conn.groupParticipantsUpdate(jid, [sender], "remove");
+        await message.removeParticipant([sender]);
         await conn.sendMessage(jid, {
           text: `❌ @${sender.split("@")[0]} removed after ${maxWarn} warnings for ${reason}.`,
           mentions: [sender],
@@ -686,7 +686,7 @@ async function handleViolationWord(message, sender, settings, reason) {
 
   if (action === "kick") {
     try {
-      await conn.groupParticipantsUpdate(jid, [sender], "remove");
+      await message.removeParticipant([sender]);
       await conn.sendMessage(jid, {
         text: `❌ @${sender.split("@")[0]} removed for using banned words.`,
         mentions: [sender],
