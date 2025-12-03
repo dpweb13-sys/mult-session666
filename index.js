@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 /**
- * Start a bot instance for a given number
+ * Start a bot instance for a given 
  */
 async function startBot(number) {
   try {
