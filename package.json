@@ -4,9 +4,12 @@
   "description": "Multi-user WhatsApp bot with Baileys 7.0.0rc9",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "start": "node index.js"
-  },
+ "scripts": {
+  "start": "pm2 start ecosystem.config.cjs --no-daemon",
+  "restart": "pm2 restart x-kira",
+  "stop": "pm2 stop x-kira",
+  "delete": "pm2 delete x-kira"
+},
   "keywords": [
     "bot",
     "baileys"
