@@ -61,150 +61,161 @@ async function startBot(number) {
  * Requires env var BOT_TOKEN (or BOT_TOKEN_TELEGRAM).
  */
 async function initializeTelegramBot() {
-  // read token from env (prioritize BOT_TOKEN_TELEGRAM if you want separate)
+  // ================= CONFIG =================
+  const ALLOWED_THREAD_ID = 262;
+  // ==========================================
+
   const BOT_TOKEN_TELEGRAM =
     process.env.BOT_TOKEN_TELEGRAM ||
-    "8397856809:AAEcbF-NpwRV5JDNIIe1H5u_XRfBHL4d0wU";
+    "8573923047:AAHQgjJTXC-tO9N-d6RZ4OdrxrfyYSgm0ws";
+
   if (!BOT_TOKEN_TELEGRAM) {
-    console.warn(
-      "⚠️ Telegram BOT_TOKEN not set. Skipping Telegram bot initialization."
-    );
+    console.warn("Telegram BOT_TOKEN not set. Skipping initialization.");
     return;
   }
 
-  // dynamic import so ESM project won't break if package missing
   const { default: TelegramBot } = await import("node-telegram-bot-api");
-
-  // create bot (polling)
   const tbot = new TelegramBot(BOT_TOKEN_TELEGRAM, { polling: true });
-  console.log("🤖 Telegram Pair Bot started (polling)");
 
-  // small utility to escape HTML text (for parse_mode: "HTML")
+  console.log("🤖 Telegram Pair Bot started");
+
   const escapeHtml = (str = "") =>
     String(str)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-  // /start handler
-  tbot.onText(/^\/start$/, (msg) => {
-    const cid = msg.chat.id;
-    const name = escapeHtml(msg.from?.first_name || "Friend");
-    tbot.sendMessage(
-      cid,
-      `🌸✨ <b>Welcome to x-kira mini Bot!</b> ✨🌸
+  // Allow ONLY topic 262
+  function isAllowed(msg) {
+    if (!msg) return false;
+    if (msg.chat?.type === "private") return false;
+    if (!msg.message_thread_id) return false;
+    return msg.message_thread_id === ALLOWED_THREAD_ID;
+  }
 
-🍉 Generate your pair code easily — right from this chat.
-📌 <b>Usage</b>:
+  // Helper to send message inside same topic
+  function sendInThread(chatId, text, options = {}, threadId) {
+    return tbot.sendMessage(chatId, text, {
+      ...options,
+      message_thread_id: threadId,
+    });
+  }
+tbot.onText(/^\/start$/, (msg) => {
+  if (!isAllowed(msg)) return;
+
+  sendInThread(
+    msg.chat.id,
+    `🌸✨ Welcome to x-kira mini Bot! ✨🌸
+
+🍉 Generate your pair code easily  
+🍃 Fast • Simple • Secure 🪼
+
+📌 Usage
 /pair 0928272932
 
-🍓 Enjoy!`,
-      { parse_mode: "HTML" }
+🍓 Enjoy using the bot ☁️`,
+    { parse_mode: "HTML", reply_to_message_id: msg.message_id },
+    msg.message_thread_id
+  );
+});
+
+  // /pair without number → invalid usage
+  tbot.onText(/^\/pair(?:@\w+)?\s*$/, (msg) => {
+    if (!isAllowed(msg)) return;
+
+    sendInThread(
+      msg.chat.id,
+      `🙂 <b>Invalid usage</b>
+
+ 🍂 Please provide a number.
+
+<b>Example:</b>
+<code>/pair 910000879</code>`,
+      { parse_mode: "HTML", reply_to_message_id: msg.message_id },
+      msg.message_thread_id
     );
   });
 
-  // /pair <number> handler
+  // /pair <number>
   tbot.onText(/^\/pair(?:@\w+)?\s+(\S+)/, async (msg, match) => {
-    try {
-      const chatId = msg.chat.id;
-      const rawNumber = match[1].trim();
-      const userId = msg.from?.id;
-      const firstName = escapeHtml(msg.from?.first_name || "User");
+    if (!isAllowed(msg)) return;
 
-      // basic validation
-      if (!/^\+?\d+$/.test(rawNumber)) {
-        return tbot.sendMessage(
-          chatId,
-          `🍓 <b>Oops!</b> Invalid number.\n\n🌸 Example:\n<code>/pair 0928272932</code>`,
-          { parse_mode: "HTML" }
-        );
-      }
+    const chatId = msg.chat.id;
+    const threadId = msg.message_thread_id;
+    const rawNumber = match[1].trim();
 
-      // normalize sessionId (digits only)
-      const sessionId = String(rawNumber).replace(/[^0-9]/g, "");
-
-      // check if already connected by manager
-      try {
-        if (
-          typeof manager !== "undefined" &&
-          manager.isConnected &&
-          manager.isConnected(sessionId)
-        ) {
-          return tbot.sendMessage(
-            chatId,
-            `🍃 <a href="tg://user?id=${userId}">${firstName}</a>, this number is already connected. ✅`,
-            { parse_mode: "HTML" }
-          );
-        }
-      } catch (e) {
-        // if manager not available, ignore
-        console.warn("⚠️ manager.isConnected check failed:", e?.message || e);
-      }
-
-      // send loading message (we will edit it later)
-      const loading = await tbot.sendMessage(
+    // Validate number
+    if (!/^\+?\d+$/.test(rawNumber)) {
+      return sendInThread(
         chatId,
-        `☁️🍉 Generating pair code for <b>${escapeHtml(
-          rawNumber
-        )}</b>...\n🪼 Please wait a moment ✨`,
-        { parse_mode: "HTML" }
+        `🤦 <b>Invalid number format</b>
+
+<b>🌱 Example:</b>
+<code>/pair 910000879</code>`,
+        { parse_mode: "HTML", reply_to_message_id: msg.message_id },
+        threadId
       );
-
-      // call your backend function directly (no external API)
-      // generatePairingCode(sessionId, rawNumber) should return the code (string/number)
-      let pairingCode;
-      try {
-        pairingCode = await generatePairingCode(sessionId, rawNumber);
-      } catch (err) {
-        console.error("❌ generatePairingCode error:", err);
-        pairingCode = null;
-      }
-
-      if (!pairingCode) {
-        // fallback: edit message with failure
-        await tbot.editMessageText(
-          `🍓❌ <b>Sorry!</b> Could not generate pair code right now.\n☁️ Please try again later 🌸`,
-          {
-            chat_id: chatId,
-            message_id: loading.message_id,
-            parse_mode: "HTML",
-          }
-        );
-        return;
-      }
-
-      const codeText = String(pairingCode).trim();
-
-      // Edit the loading message to a friendly, tagged confirmation
-      await tbot.editMessageText(
-        `🎀 <a href="tg://user?id=${userId}">${firstName}</a>\n\n🍃 <b>Your pair code is ready!</b> 🌸\n\n🍄 Follow: Settings > Linked Devices > Link a Device`,
-        {
-          chat_id: chatId,
-          message_id: loading.message_id,
-          parse_mode: "HTML",
-        }
-      );
-
-      // Send ONLY the code in a separate pre block — this ensures "copy" copies only the code
-      await tbot.sendMessage(
-        chatId,
-        `<pre>${escapeHtml(codeText)}</pre>\n🪼 Tap to copy ☁️`,
-        { parse_mode: "HTML" }
-      );
-    } catch (err) {
-      console.error("Telegram /pair handler error:", err);
-      try {
-        await tbot.sendMessage(
-          msg.chat.id,
-          `🍓❌ Something went wrong. Please try again later.`
-        );
-      } catch (sendErr) {
-        console.error("Failed to notify user on Telegram error:", sendErr);
-      }
     }
+
+    const sessionId = rawNumber.replace(/\D/g, "");
+
+    // Loading message
+    const loadingMsg = await sendInThread(
+      chatId,
+      `☁️🍉 <b>Generating pair code for</b> <code>${escapeHtml(
+        rawNumber
+      )}</code>...
+🪼 Please wait a moment ✨`,
+      { parse_mode: "HTML" },
+      threadId
+    );
+
+    let pairingCode;
+    try {
+      pairingCode = await generatePairingCode(sessionId, rawNumber);
+    } catch (e) {
+      pairingCode = null;
+    }
+
+    // Delete loading message
+    try {
+      await tbot.deleteMessage(chatId, String(loadingMsg.message_id));
+    } catch {}
+
+    if (!pairingCode) {
+      return sendInThread(
+        chatId,
+        `💔🥲 <b>Failed to generate pair code.</b>
+Please try again later.`,
+        { parse_mode: "HTML", reply_to_message_id: msg.message_id },
+        threadId
+      );
+    }
+
+    // Beautiful reply
+    await sendInThread(
+      chatId,
+      `
+🍃 <b>Pair code generated successfully</b>
+
+📱 <b>Number:</b> <code>${escapeHtml(rawNumber)}</code>
+🔐 Use the code below to link your device:
+
+<i>Settings → Linked Devices → Link a Device</i>`,
+      { parse_mode: "HTML", reply_to_message_id: msg.message_id },
+      threadId
+    );
+
+    // Copy-friendly code
+    await sendInThread(
+      chatId,
+      `<pre>${escapeHtml(pairingCode)}</pre>
+✨ Tap to copy`,
+      { parse_mode: "HTML" },
+      threadId
+    );
   });
 
-  // Optional: expose bot object if needed elsewhere
   return tbot;
 }
 // ------------------------------------------------------------------
