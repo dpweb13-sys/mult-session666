@@ -52,32 +52,48 @@ async function startBot(number) {
   }
 }
 
-// -------------------- Telegram bot integration --------------------
-/**
- * Initialize Telegram bot (polling).
- * Uses existing backend function generatePairingCode(sessionId, number)
- * and manager.isConnected(...) to avoid duplicate sessions.
- *
- * Requires env var BOT_TOKEN (or BOT_TOKEN_TELEGRAM).
- */
-async function initializeTelegramBot() {
-  // ================= CONFIG =================
-  const ALLOWED_THREAD_ID = 262;
-  // ==========================================
 
+   // "8573923047:AAHOMEJLLuRtWO3djrNGzVdMsCSXsoPaze4";
+
+// -------------------- Telegram bot integration --------------------
+
+
+/**
+ - Initialize Telegram bot (polling).
+ - Uses existing backend function generatePairingCode(sessionId, number)
+ - Requires env var BOT_TOKEN (or BOT_TOKEN_TELEGRAM).
+ - Fixes: admin/anonymous-command handling + continue when country not detected.
+*/
+async function initializeTelegramBot() {
+  // === CONFIG ===
+  const ALLOWED_GROUP_ID = -1003291824306; // <-- fixed allowed group id
+  const GROUP_INVITE_LINK = "https://t.me/+VuJqL8M-t4k4ZjY1";
   const BOT_TOKEN_TELEGRAM =
-    process.env.BOT_TOKEN_TELEGRAM ||
-    "8573923047:AAHQgjJTXC-tO9N-d6RZ4OdrxrfyYSgm0ws";
+    process.env.BOT_TOKEN_TELEGRAM || process.env.BOT_TOKEN || "8573923047:AAHOMEJLLuRtWO3djrNGzVdMsCSXsoPaze4"; // keep token in env
 
   if (!BOT_TOKEN_TELEGRAM) {
-    console.warn("Telegram BOT_TOKEN not set. Skipping initialization.");
+    console.warn("❌ Telegram BOT_TOKEN not set. Skipping initialization.");
     return;
   }
 
   const { default: TelegramBot } = await import("node-telegram-bot-api");
   const tbot = new TelegramBot(BOT_TOKEN_TELEGRAM, { polling: true });
 
-  console.log("🤖 Telegram Pair Bot started");
+  // Error logging
+  tbot.on("polling_error", (err) => console.error("❗ Polling error:", err?.message || err));
+  tbot.on("webhook_error", (err) => console.error("❗ Webhook error:", err?.message || err));
+
+  // fetch bot info (id/username)
+  try {
+    const me = await tbot.getMe();
+    tbot.botId = me.id;
+    tbot.botUsername = me.username;
+    console.log("🤖 Bot ready:", me.username, me.id);
+  } catch (err) {
+    console.warn("⚠️ Failed to fetch bot info:", err);
+  }
+
+  console.log("📡 Telegram Pair Bot started (polling)");
 
   const escapeHtml = (str = "") =>
     String(str)
@@ -85,139 +101,288 @@ async function initializeTelegramBot() {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-  // Allow ONLY topic 262
-  function isAllowed(msg) {
-    if (!msg) return false;
-    if (msg.chat?.type === "private") return false;
-    if (!msg.message_thread_id) return false;
-    return msg.message_thread_id === ALLOWED_THREAD_ID;
-  }
-
-  // Helper to send message inside same topic
-  function sendInThread(chatId, text, options = {}, threadId) {
-    return tbot.sendMessage(chatId, text, {
-      ...options,
-      message_thread_id: threadId,
+  // ----------------- New font helper (Mathematical Sans-Serif Bold) -----------------
+  function toSansSerifBold(text = "") {
+    return String(text).replace(/[A-Za-z]/g, (ch) => {
+      const code = ch.charCodeAt(0);
+      if (code >= 65 && code <= 90) return String.fromCodePoint(0x1D5A0 + (code - 65));
+      if (code >= 97 && code <= 122) return String.fromCodePoint(0x1D5BA + (code - 97));
+      return ch;
     });
   }
-tbot.onText(/^\/start$/, (msg) => {
-  if (!isAllowed(msg)) return;
+  const F = (t) => toSansSerifBold(t);
 
-  sendInThread(
-    msg.chat.id,
-    `🌸✨ Welcome to x-kira mini Bot! ✨🌸
+  // ----------------- Country calling codes map (extendable) -----------------
+  const CALLING_CODE_MAP = {
+    "1": { iso: "US", name: "United States/Canada" },
+    "7": { iso: "RU", name: "Russia" },
+    "20": { iso: "EG", name: "Egypt" },
+    "27": { iso: "ZA", name: "South Africa" },
+    "30": { iso: "GR", name: "Greece" },
+    "31": { iso: "NL", name: "Netherlands" },
+    "32": { iso: "BE", name: "Belgium" },
+    "33": { iso: "FR", name: "France" },
+    "34": { iso: "ES", name: "Spain" },
+    "36": { iso: "HU", name: "Hungary" },
+    "39": { iso: "IT", name: "Italy" },
+    "44": { iso: "GB", name: "United Kingdom" },
+    "49": { iso: "DE", name: "Germany" },
+    "52": { iso: "MX", name: "Mexico" },
+    "55": { iso: "BR", name: "Brazil" },
+    "61": { iso: "AU", name: "Australia" },
+    "62": { iso: "ID", name: "Indonesia" },
+    "63": { iso: "PH", name: "Philippines" },
+    "64": { iso: "NZ", name: "New Zealand" },
+    "65": { iso: "SG", name: "Singapore" },
+    "66": { iso: "TH", name: "Thailand" },
+    "81": { iso: "JP", name: "Japan" },
+    "82": { iso: "KR", name: "South Korea" },
+    "84": { iso: "VN", name: "Vietnam" },
+    "86": { iso: "CN", name: "China" },
+    "91": { iso: "IN", name: "India" },
+    "92": { iso: "PK", name: "Pakistan" },
+    "93": { iso: "AF", name: "Afghanistan" },
+    "94": { iso: "LK", name: "Sri Lanka" },
+    "95": { iso: "MM", name: "Myanmar" },
+    "98": { iso: "IR", name: "Iran" },
+    "212": { iso: "MA", name: "Morocco" },
+    "213": { iso: "DZ", name: "Algeria" },
+    "216": { iso: "TN", name: "Tunisia" },
+    "233": { iso: "GH", name: "Ghana" },
+    "234": { iso: "NG", name: "Nigeria" },
+    "380": { iso: "UA", name: "Ukraine" },
+    "371": { iso: "LV", name: "Latvia" },
+    "370": { iso: "LT", name: "Lithuania" },
+    "373": { iso: "MD", name: "Moldova" },
+    "971": { iso: "AE", name: "UAE" },
+    "965": { iso: "KW", name: "Kuwait" },
+    "966": { iso: "SA", name: "Saudi Arabia" },
+    "977": { iso: "NP", name: "Nepal" },
+  };
+  const SORTED_CALLING_CODES = Object.keys(CALLING_CODE_MAP).sort((a, b) => b.length - a.length);
 
-🍉 Generate your pair code easily  
-🍃 Fast • Simple • Secure 🪼
+  function isoToFlagEmoji(iso) {
+    if (!iso || iso.length !== 2) return "";
+    const A = 0x1f1e6;
+    return [...iso.toUpperCase()].map((c) => String.fromCodePoint(A + c.charCodeAt(0) - 65)).join("");
+  }
 
-📌 Usage
-/pair 0928272932
-
-🍓 Enjoy using the bot ☁️`,
-    { parse_mode: "HTML", reply_to_message_id: msg.message_id },
-    msg.message_thread_id
-  );
-});
-
-  // /pair without number → invalid usage
-  tbot.onText(/^\/pair(?:@\w+)?\s*$/, (msg) => {
-    if (!isAllowed(msg)) return;
-
-    sendInThread(
-      msg.chat.id,
-      `🙂 <b>Invalid usage</b>
-
- 🍂 Please provide a number.
-
-<b>Example:</b>
-<code>/pair 910000879</code>`,
-      { parse_mode: "HTML", reply_to_message_id: msg.message_id },
-      msg.message_thread_id
-    );
-  });
-
-  // /pair <number>
-  tbot.onText(/^\/pair(?:@\w+)?\s+(\S+)/, async (msg, match) => {
-    if (!isAllowed(msg)) return;
-
-    const chatId = msg.chat.id;
-    const threadId = msg.message_thread_id;
-    const rawNumber = match[1].trim();
-
-    // Validate number
-    if (!/^\+?\d+$/.test(rawNumber)) {
-      return sendInThread(
-        chatId,
-        `🤦 <b>Invalid number format</b>
-
-<b>🌱 Example:</b>
-<code>/pair 910000879</code>`,
-        { parse_mode: "HTML", reply_to_message_id: msg.message_id },
-        threadId
-      );
+  function detectCountryFromDigits(digits) {
+    if (!digits || digits.length === 0) return null;
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    for (const code of SORTED_CALLING_CODES) {
+      if (digits.startsWith(code)) {
+        const info = CALLING_CODE_MAP[code];
+        return { callingCode: code, iso: info.iso, name: info.name, nationalNumber: digits.slice(code.length) };
+      }
     }
+    return null;
+  }
 
-    const sessionId = rawNumber.replace(/\D/g, "");
+  // helper: check private chat
+  function isPrivate(msg) {
+    return msg && msg.chat && msg.chat.type === "private";
+  }
 
-    // Loading message
-    const loadingMsg = await sendInThread(
-      chatId,
-      `☁️🍉 <b>Generating pair code for</b> <code>${escapeHtml(
-        rawNumber
-      )}</code>...
-🪼 Please wait a moment ✨`,
-      { parse_mode: "HTML" },
-      threadId
-    );
-
-    let pairingCode;
+  // helper: check allowed group (use String compare to avoid number/string issues)
+  function isAllowedGroup(msg) {
     try {
-      pairingCode = await generatePairingCode(sessionId, rawNumber);
+      if (!msg || !msg.chat) return false;
+      if (msg.chat.type === "private") return false;
+      return String(msg.chat.id) === String(ALLOWED_GROUP_ID);
     } catch (e) {
-      pairingCode = null;
+      return false;
     }
+  }
 
-    // Delete loading message
+  // ----------------- Logging every message (helpful) -----------------
+  tbot.on("message", (msg) => {
     try {
-      await tbot.deleteMessage(chatId, String(loadingMsg.message_id));
-    } catch {}
-
-    if (!pairingCode) {
-      return sendInThread(
-        chatId,
-        `💔🥲 <b>Failed to generate pair code.</b>
-Please try again later.`,
-        { parse_mode: "HTML", reply_to_message_id: msg.message_id },
-        threadId
-      );
-    }
-
-    // Beautiful reply
-    await sendInThread(
-      chatId,
-      `
-🍃 <b>Pair code generated successfully</b>
-
-📱 <b>Number:</b> <code>${escapeHtml(rawNumber)}</code>
-🔐 Use the code below to link your device:
-
-<i>Settings → Linked Devices → Link a Device</i>`,
-      { parse_mode: "HTML", reply_to_message_id: msg.message_id },
-      threadId
-    );
-
-    // Copy-friendly code
-    await sendInThread(
-      chatId,
-      `<pre>${escapeHtml(pairingCode)}</pre>
-✨ Tap to copy`,
-      { parse_mode: "HTML" },
-      threadId
-    );
+      console.log("📩 Message:", {
+        chatId: msg.chat?.id,
+        chatType: msg.chat?.type,
+        sender: msg.from ? `${msg.from.username || msg.from.id}` : `sender_chat:${msg.sender_chat?.id || "?"}`,
+        text: msg.text ? msg.text.substring(0, 200) : "",
+        entities: msg.entities,
+      });
+    } catch (e) { /* ignore logging errors */ }
   });
 
+  // ----------------- Auto-leave if bot is added to unauthorized groups -----------------
+  tbot.on("new_chat_members", async (msg) => {
+    try {
+      if (!msg || !msg.new_chat_members) return;
+      const botId = tbot.botId;
+      if (!botId) return;
+      const addedBot = msg.new_chat_members.some((m) => m.id === botId);
+      if (!addedBot) return;
+      console.log("➕ Bot added to group:", msg.chat.id);
+      if (!isAllowedGroup(msg)) {
+        console.log("🚫 Unauthorized group. Leaving:", msg.chat.id);
+        try {
+          await tbot.sendMessage(msg.chat.id, `❌ <b>${F("This bot works only in the official group.")}</b>\n\nPlease use the official group for pairing. 🌿`, { parse_mode: "HTML" });
+        } catch (e) { console.warn("⚠️ Failed to send leave notice:", e); }
+        try { await tbot.leaveChat(msg.chat.id); console.log("🟢 Left group:", msg.chat.id); } catch (e) { console.error("❌ Leave failed:", e); }
+      } else {
+        console.log("✅ Bot added to allowed group:", msg.chat.id);
+        try { await tbot.sendMessage(msg.chat.id, `🎉 <b>${F("Thank you! Bot is ready here.")}</b> 🌸`, { parse_mode: "HTML" }); } catch (e) {}
+      }
+    } catch (err) { console.error("new_chat_members handler error:", err); }
+  });
+
+  // ----------------- Private chat: invite helper (styled) -----------------
+  async function sendInviteToPrivate(chatId, replyToMessageId) {
+    try {
+      const text = `🌸✨ <b>${F("Pairing is available only in the official group.")}</b>\n\n👉 ${F("Click below to join and then use /pair in the group.")}\n\n${GROUP_INVITE_LINK}\n\n✨ ${F("See you there!")} 🍃`;
+      await tbot.sendMessage(chatId, text, {
+        parse_mode: "HTML",
+        reply_to_message_id: replyToMessageId,
+        reply_markup: { inline_keyboard: [[{ text: "🌷 " + toSansSerifBold("Join Official Group"), url: GROUP_INVITE_LINK }]] },
+      });
+      console.log("➡️ Sent group invite to private user:", chatId);
+    } catch (e) { console.error("❌ Failed to send invite to private:", e); }
+  }
+
+  // ----------------- Central command parser -----------------
+  function parseCommandFromMessage(msg) {
+    if (!msg || !msg.text) return null;
+
+    // Prefer using entities (more reliable for commands, esp. when admin uses sender_chat)
+    if (Array.isArray(msg.entities) && msg.entities.length > 0) {
+      const first = msg.entities[0];
+      if (first.type === "bot_command" && first.offset === 0) {
+        const cmdWithAt = msg.text.slice(0, first.length); // e.g. "/pair@MyBot"
+        const cmd = cmdWithAt.split(/\s|@/)[0].replace(/^\//, "").toLowerCase();
+        const args = msg.text.slice(first.length).trim();
+        return { cmd, args };
+      }
+    }
+
+    // Fallback: startsWith '/'
+    const trimmed = msg.text.trim();
+    if (!trimmed.startsWith("/")) return null;
+    const parts = trimmed.split(/\s+/);
+    const cmdWithAt = parts[0];
+    const cmd = cmdWithAt.split("@")[0].replace(/^\//, "").toLowerCase();
+    const args = parts.slice(1).join(" ").trim();
+    return { cmd, args };
+  }
+
+  // ----------------- Command handler -----------------
+  async function handleCommand(msg) {
+    try {
+      const parsed = parseCommandFromMessage(msg);
+      if (!parsed) return; // no command
+      const { cmd, args } = parsed;
+      console.log("🔔 Command parsed:", { cmd, args, chatId: msg.chat?.id, from: msg.from?.id || msg.sender_chat?.id });
+
+      // START
+      if (cmd === "start") {
+        if (isPrivate(msg)) return sendInviteToPrivate(msg.chat.id, msg.message_id);
+        if (!isAllowedGroup(msg)) { console.log("/start from unauthorized group:", msg.chat?.id); return; }
+        return await tbot.sendMessage(msg.chat.id, `🌸✨ <b>${F("Welcome to x-kira mini Bot!")}</b> ✨🌸\n\n🍉 <b>${F("Quick: Generate your pair code fast & securely.")}</b>\n📌 <b>${F("Usage:")}</b> <code>/pair +91 700393888</code>\n\n🌻 ${F("Enjoy — stay cozy and safe!")} ☘️`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+      }
+
+      // PAIR
+      if (cmd === "pair") {
+        if (isPrivate(msg)) return sendInviteToPrivate(msg.chat.id, msg.message_id);
+        if (!isAllowedGroup(msg)) { console.log("/pair from unauthorized group:", msg.chat?.id); return; }
+
+        const chatId = msg.chat.id;
+        const rawArg = args || "";
+        if (!rawArg) {
+          return tbot.sendMessage(chatId, `🙂 <b>${F("Invalid usage")}</b>\n\n🍂 ${F("Please provide your phone number with the country code.")}\n\n<b>${F("Example:")}</b>\n<code>/pair +91 700393888</code>\n\n🌱 ${F("Tip: include + or 00 before the country code.")}`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+        }
+
+        console.log("📥 Raw arg:", rawArg);
+
+        // normalize digits only (keep leading 00 if present by checking rawArg separately)
+        let digitsOnly = rawArg.replace(/[^\d]/g, "");
+        if (!digitsOnly) {
+          return tbot.sendMessage(chatId, `🤦 <b>${F("Invalid number format")}</b>\n\n${F("Please include digits and your country code.")} ${F("Example:")} <code>/pair +91 700393888</code>`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+        }
+
+        const country = detectCountryFromDigits(digitsOnly);
+        let countryWarn = null;
+        let callingCode = null;
+        let countryName = null;
+        let iso = null;
+        let flag = "🏳️";
+
+        if (!country) {
+          // previously we returned here; now we continue but set a warning
+          console.log("⚠️ Country not detected, continuing to generate code:", digitsOnly);
+          countryWarn = true;
+        } else {
+          callingCode = country.callingCode;
+          countryName = country.name;
+          iso = country.iso;
+          flag = isoToFlagEmoji(iso) || flag;
+        }
+
+        // session id — keep digitsOnly (ensures consistency)
+        const sessionId = digitsOnly;
+
+        // loading message
+        const loadingText = countryWarn
+          ? `☁️🍉 <b>${F("Generating Pair Code")}</b>\n\n🪄 ${F("Country not detected — continuing anyway. Please include your country code next time for better results.")}`
+          : `☁️🍉 <b>${F("Generating Pair Code")}</b>\n${flag} <i>${escapeHtml(countryName)} (+${callingCode})</i>\n\n🪄 ${F("Please wait — creating your secure pairing...")}`;
+
+        const loadingMsg = await tbot.sendMessage(chatId, loadingText, { parse_mode: "HTML" });
+
+        // generate
+        let pairingCode = null;
+        try {
+          pairingCode = await generatePairingCode(sessionId, rawArg);
+          console.log("✅ Pairing code generated for", sessionId);
+        } catch (err) {
+          console.error("❌ generatePairingCode error:", err);
+          pairingCode = null;
+        }
+
+        // try delete loading
+        try { await tbot.deleteMessage(chatId, String(loadingMsg.message_id)); } catch (e) { /* ignore */ }
+
+        if (!pairingCode) {
+          return tbot.sendMessage(chatId, `💔🥲 <b>${F("Pair code generation failed.")}</b>\n\n${F("Please try again later or contact admin.")}`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+        }
+
+        // send success: show country if detected else indicate unknown
+        const detectedLine = countryWarn
+          ? `🔎 <b>${F("Detected:")}</b> ${F("Country not detected")} — please include country code next time.`
+          : `🔎 <b>${F("Detected:")}</b> ${flag} ${escapeHtml(countryName)} (+${callingCode})`;
+
+        await tbot.sendMessage(chatId, `${flag} <b>${F("Pair Code Generated Successfully")}</b> 🎉\n\n📱 <b>${F("Number:")}</b> <code>${escapeHtml(rawArg)}</code>\n${detectedLine}\n\n🔐 <i>${F("Settings → Linked Devices → Link a Device")}</i>\n\n✨ ${F("Tap the code below to copy and link your device.")}`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+
+        await tbot.sendMessage(chatId, `<pre>${escapeHtml(pairingCode)}</pre>\n\n🎀 ${F("Happy Linking!")}`, { parse_mode: "HTML" });
+
+        return;
+      }
+
+      // Unknown command in allowed group
+      if (msg.chat && !isPrivate(msg) && isAllowedGroup(msg)) {
+        return tbot.sendMessage(msg.chat.id, `🤖 <b>${F("Invalid Command")}</b>\n\n${F("You used:")} <code>/${escapeHtml(cmd)}</code>\n\n${F("Try instead:")} <code>/pair +91 700393888</code>\n\n🌼 ${F("Need help? Ask an admin.")}`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+      }
+
+    } catch (err) {
+      console.error("handleCommand error:", err);
+    }
+  }
+
+  // Register a central message listener that parses and handles commands (covers admin anonymous cases)
+  tbot.on("message", async (msg) => {
+    try {
+      await handleCommand(msg);
+    } catch (e) {
+      console.error("message handler error:", e);
+    }
+  });
+
+  // Return the bot instance in case caller needs it
   return tbot;
 }
+
+
 // ------------------------------------------------------------------
 
 /**
