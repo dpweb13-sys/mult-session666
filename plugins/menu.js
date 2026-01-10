@@ -144,37 +144,4 @@ Module({
   }
 });
 
-// Alive command
-Module({
-  command: "alive",
-  package: "general",
-  description: "Check if bot is alive",
-})(async (message) => {
-  try {
-    const hostname = os.hostname();
-    const time = new Date().toLocaleTimeString("en-ZA", {
-      timeZone: "Africa/Johannesburg",
-    });
-    const ramUsedMB = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-    const uptime = process.uptime();
-    const hours = Math.floor(uptime / 3600);
-    const minutes = Math.floor((uptime % 3600) / 60);
-    const seconds = Math.floor(uptime % 60);
-    const ctx = `
-*${name}* is online
-*Time:* ${time}
-*Host:* ${hostname}
-*RAM Usage:* ${ramUsedMB} MB
-*Uptime:* ${hours}h ${minutes}m ${seconds}s
-`;
-    await message.conn.sendMessage(message.from, {
-      image: { url: getRandomPhoto() },
-      caption: ctx,
-    });
-  } catch (err) {
-    console.error("❌ Alive command error:", err);
-    await message.conn.sendMessage(message.from, {
-      text: `❌ Error: ${err?.message || err}`,
-    });
-  }
-});
+/
