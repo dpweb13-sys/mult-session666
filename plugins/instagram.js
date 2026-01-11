@@ -7,30 +7,23 @@ Module({
   description: 'Download Instagram photo/video'
 })(async (message, match) => {
 
-  // Styled English error
   if (!match) {
-    return message.send(`
-╭───「 📸 Instagram 」───╮
-│
-│  ❌ Instagram URL required
-│
-╰───────────────╯
-`.trim())
+    return message.send(
+      '╭───「 📸 Instagram 」───╮\n' +
+      '│ ❌ Instagram URL required\n' +
+      '╰───────────────╯'
+    )
   }
 
   try {
     const d = await instaSave(match)
     if (!d) return message.send('❌ Download failed')
 
-    const caption = `
-╭───「 📸 Instagram 」───╮
-│
-│  ${d.description || ''}
-│
-╰───────────────╯
-
-✦ 𝐏ᴏᴡᴇʀᴇᴅ 𝐁Y  𝐑ᴀʙʙɪᴛ Xᴍᴅ Mɪɴɪ
-`.trim()
+    const caption =
+      '╭───「 📸 Instagram 」───╮\n' +
+      (d.description ? `│ ${d.description}\n` : '│\n') +
+      '╰───────────────╯\n\n' +
+      '✦ 𝐏ᴏᴡᴇʀᴇᴅ 𝐁Y  𝐑ᴀʙʙɪᴛ Xᴍᴅ Mɪɴɪ'
 
     if (d.MP4) {
       return message.send({ video: { url: d.MP4 }, caption })
@@ -38,17 +31,6 @@ Module({
 
     if (d.JPEG) {
       return message.send({ image: { url: d.JPEG }, caption })
-    }
-
-    if (Array.isArray(d.media)) {
-      for (const m of d.media) {
-        await message.send(
-          m.type === 'video'
-            ? { video: { url: m.url }, caption }
-            : { image: { url: m.url }, caption }
-        )
-      }
-      return
     }
 
     return message.send('❌ Unsupported post type')
