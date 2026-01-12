@@ -55,8 +55,8 @@ Module({
       _cmd_st += ` *┕──────────────────❒*\n`;
     } else {
       _cmd_st += `
-╔〔 🧚‍♀️*Rᴀʙʙɪᴛ Xᴍᴅ Mɪɴɪ*💐〕╗
- *👋 Hᴇʟʟᴏ, Rᴀʙʙɪᴛ Xᴍᴅ Mɪɴɪ Usᴇʀ!*
+╔〔 🧚‍♀️*𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓*💐〕╗
+ *👋 Hᴇʟʟᴏ,𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓 Usᴇʀ!*
 ╚══════════════════════╝
 
 ╭─「 *Cᴏᴍᴍᴀɴᴅ Pᴀɴᴇʟ* 」
@@ -78,19 +78,19 @@ ${readMore}
         _cmd_st += ` *┕──────────────────❒*\n`;
       }
 
-      _cmd_st += `\n *💐 𝐓ʜᴀɴᴋ 𝐘ᴏᴜ 𝐅ᴏʀ 𝐔sɪɴɢ 𝐑ᴀʙʙɪᴛ Xᴍᴅ 𝐁ᴏᴛ 💞*`;
+      _cmd_st += `\n *💐 𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓 💞*`;
     }
 
     const opts = {
-      image: { url: "https://www.rabbit.zone.id/pzf1km.jpg" },
+      image: { url: "https://files.catbox.moe/56fmfy.jpg" },
       caption: _cmd_st,
       mimetype: "image/jpeg",
       contextInfo: {
         forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: "120363404737630340@newsletter",
-          newsletterName: "𝐑ᴀʙʙɪᴛ Xᴍᴅ",
+          newsletterJid: "0029Vb7EqT7Fy728yCgwnZ3T@newsletter",
+          newsletterName: "𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓",
           serverMessageId: 6,
         },
       },
