@@ -24,7 +24,7 @@ Module({
     const caption = `
 💜🦋💗 𝐁ᴏᴛ 𝐀ʟɪᴠᴇ 💗🦋💜
 
-🌸 𝐁ᴏᴛ ɴᴀᴍᴇ: 𝐑ᴀʙʙɪᴛ Xᴍᴅ 🌸
+🌸 𝐁ᴏᴛ ɴᴀᴍᴇ: 𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 🌸
 ⚡ 𝐓ɪᴍᴇ (IST): ${time}
 🏠 𝐇ᴏsᴛ: 𝐑ᴀʙʙɪᴛ𝐇ᴏsᴛ
 💾 𝐑ᴀᴍ 𝐔sᴀɢᴇ: ${ramUsedMB} MB
@@ -34,7 +34,7 @@ Module({
     `.trim();
 
     const opts = {
-      image: { url: "https://www.rabbit.zone.id/pzf1km.jpg" },
+      image: { url: "https://files.catbox.moe/56fmfy.jpg" },
       caption: caption,
       mimetype: "image/jpeg",
       contextInfo: {
@@ -42,7 +42,7 @@ Module({
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
           newsletterJid: "120363404737630340@newsletter",
-          newsletterName: "𝐑ᴀʙʙɪᴛ Xᴍᴅ",
+          newsletterName: "𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃",
           serverMessageId: 6,
         },
       },
