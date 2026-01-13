@@ -4,23 +4,19 @@ Module({
   command: "creact",
   package: "channel"
 })(async (message) => {
+  console.log("CREACT triggered");
   
-  // Check if replied to channel post
   if (!message.quoted?.key?.remoteJid?.endsWith("@newsletter")) {
-    return message.send("❌ Reply to a Channel post first!
-✅ Reply → `.creact`");
+    return message.send("❌ Reply to Channel post first!");
   }
 
   try {
     await message.conn.sendMessage(message.quoted.key.remoteJid, {
-      react: { 
-        text: "❤️", 
-        key: message.quoted.key 
-      }
+      react: { text: "❤️", key: message.quoted.key }
     });
-    await message.send("✅ ❤️ Successfully reacted to channel post!");
+    await message.send("✅ ❤️ Reacted successfully!");
   } catch (error) {
     console.error("React error:", error);
-    await message.send("❌ Reaction failed! Bot needs to be channel admin");
+    await message.send("❌ Reaction failed!");
   }
 });
