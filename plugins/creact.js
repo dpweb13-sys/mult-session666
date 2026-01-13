@@ -2,79 +2,50 @@ import os from "os";
 import { Module } from "../lib/plugins.js";
 
 Module({
-  command: ["creact", "react"],  // Multiple aliases
+  command: ["creact", "react"],
   package: "channel",
-  description: "React on channel post (reply / link)"
-})(async (message, { text }) => {  // Fixed: { text } instead of match
-  
+  description: "React on channel post"
+})(async (message, { text }) => {
   let targetKey, targetJid;
 
-  // 🔹 1) Reply method - Channel post check
+  // Reply check
   if (message.quoted?.key?.remoteJid?.endsWith("@newsletter")) {
     targetKey = message.quoted.key;
     targetJid = message.quoted.key.remoteJid;
   }
-
-  // 🔹 2) Link method
+  // Link check
   else {
     const input = (text || "").trim();
     if (!input) {
       return message.send(
-        `❌ Reply করো Channel post এ অথবা link দাও!
+        "❌ Reply করো অথবা link দাও!
 
-` +
-        `📋 Examples:
-` +
-        `• Reply: `.creact 🔥`
-` +
-        `• Link: `.creact https://whatsapp.com/channel/0029VaXXX/123 ❤️`
-
-` +
-        `✨ 🔥 ❤️ 👍 👎 😍 😂`
+" +
+        "✅ `.creact https://whatsapp.com/channel/0029VaXXX/123 🔥`"
       );
     }
 
     if (input.includes("whatsapp.com/channel/")) {
       const parts = input.split("/");
-      if (parts.length < 4) {
-        return message.send("❌ Invalid link!
-✅ `.creact https://whatsapp.com/channel/0029VaXXX/123 🔥`");
-      }
-
       const channelId = parts[parts.length - 2];
       const msgId = parts[parts.length - 1];
-
-      if (!channelId.startsWith("0029Va")) {
-        return message.send("❌ Invalid channel ID! 0029Va দিয়ে শুরু হবে");
-      }
-
+      
       targetJid = `${channelId}@newsletter`;
-      targetKey = {
-        remoteJid: targetJid,
-        id: msgId,
-        fromMe: false
-      };
+      targetKey = { remoteJid: targetJid, id: msgId, fromMe: false };
     } else {
-      return message.send("❌ Valid Channel link দাও!
-.ex: `.creact https://whatsapp.com/channel/0029VaXXX/123`");
+      return message.send("❌ Valid link দাও!");
     }
   }
 
-  // 🔸 Get emoji (link থেকে extract or default)
-  const emoji = text?.replace(/https?://S+/g, "").trim() || "❤️";
+  const emoji = text?.replace(/https?://[^\\s]+/g, "").trim() || "❤️";
 
   try {
-    await message.conn.sendMessage(targetJid, {  // Fixed: message.conn
-      react: {
-        text: emoji,
-        key: targetKey
-      }
+    await message.conn.sendMessage(targetJid, {
+      react: { text: emoji, key: targetKey }
     });
-    
-    await message.send(`✅ ${emoji} reacted successfully! ✨`);
-    
+    await message.send(`✅ ${emoji} reacted!`);
   } catch (error) {
-    console.error("❌ React error:", error);
-    await message.send("❌ Reaction failed! Reply method try করো বা console check করো।");
+    console.error("React error:", error);
+    await message.send("❌ Failed!");
   }
 });
