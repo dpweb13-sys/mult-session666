@@ -12,21 +12,21 @@ Module({
 ┃ 𝐇ᴇʟʟᴏ 𝐋ᴏᴠᴇʟʏ 𝐔sᴇʀ! 🦋💖
 ┃
 ┃ 🌸 𝐏ᴀɪʀ ʏᴏᴜʀ ɴᴜᴍʙᴇʀ ᴠɪᴀ 𝐓ᴇʟᴇɢʀᴀᴍ 𝐁ᴏᴛ 🌸
-┃ 🔗 https://t.me/rabbitxmdmini_bot
+┃ 🔗 https://t.me/+2DnKv2IrP5s5ZjI1
 ┃ 🎀 𝐄ɴᴊᴏʏ ʏᴏᴜʀ ʙᴏᴛ 𝐄xᴘᴇʀɪᴇɴᴄᴇ! 🌷🦋💜
 ╰━━━━━━━━━━━━━━━━━━━━┈⊷
     `.trim();
 
     const opts = {
-      image: { url: "https://www.rabbit.zone.id/pzf1km.jpg" },
+      image: { url: "https://files.catbox.moe/56fmfy.jpg" },
       caption: _cmd_st,
       mimetype: "image/jpeg",
       contextInfo: {
         forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: "120363404737630340@newsletter",
-          newsletterName: "𝐑ᴀʙʙɪᴛ Xᴍᴅ",
+          newsletterJid: "",
+          newsletterName: "𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃",
           serverMessageId: 6,
         },
       },
