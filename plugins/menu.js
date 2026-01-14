@@ -89,7 +89,7 @@ ${readMore}
         forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: "0029Vb7EqT7Fy728yCgwnZ3T@newsletter",
+          newsletterJid: "120363406998642286@newsletter",
           newsletterName: "𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓",
           serverMessageId: 6,
         },
