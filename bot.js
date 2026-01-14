@@ -494,7 +494,7 @@ export default async function initializeTelegramBot(manager) {
       if (cmd === "start") {
         if (isPrivate(msg)) return sendInviteToPrivate(msg.chat.id, msg.message_id);
         if (!isAllowedGroup(msg)) return;
-        return await tbot.sendMessage(msg.chat.id, `🌸✨ <b>${F("Welcome to x-kira mini Bot!")}</b> ✨🌸\n\n🍉 <b>${F("Quick: Generate your pair code fast & securely.")}</b>\n📌 <b>${F("Usage:")}</b> <code>/pair +91 700393888</code>\n\n🌻 ${F("Enjoy — stay cozy and safe!")} ☘️`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
+        return await tbot.sendMessage(msg.chat.id, `🌸✨ <b>${F("Welcome to 𝐄𝐈𝐌𝐋𝐈 ✘𝐌𝐃 𝐁𝐎𝐓!")}</b> ✨🌸\n\n🍉 <b>${F("Quick: Generate your pair code fast & securely.")}</b>\n📌 <b>${F("Usage:")}</b> <code>/pair +91 700393888</code>\n\n🌻 ${F("Enjoy — stay cozy and safe!")} ☘️`, { parse_mode: "HTML", reply_to_message_id: msg.message_id });
       }
 
       if (cmd === "pair") {
