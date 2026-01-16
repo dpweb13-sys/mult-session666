@@ -1,41 +1,31 @@
 import { Module } from "../lib/plugins.js";
-import { getTheme } from "../Themes/themes.js";
 import { db } from "../lib/client.js";
 
-
 Module({
-  command: "mode", // only .mode
+  command: "mode",
   package: "owner",
   description: "Set bot mode private / public (bot number only)",
 })(async (message, match) => {
 
-  // 🔐 ONLY BOT NUMBER CAN USE
-  if (!message.isFromMe) {
-    return; // silently ignore
-  }
+  // 🔐 ONLY BOT NUMBER CAN CHANGE MODE
+  if (!message.isFromMe) return;
 
   const input = (match || "").trim().toLowerCase();
   const key = "bot_mode";
 
-  // ✅ CHANGE MODE
+  // CHANGE MODE
   if (input === "private" || input === "public") {
-    try {
-      db.setHot(message.sessionId, key, input);
-      return message.send(
-        `✅ Bot mode changed to *${input.toUpperCase()}*`
-      );
-    } catch (e) {
-      return message.send("❌ Failed to change bot mode");
-    }
+    db.setHot(message.sessionId, key, input);
+    return message.send(
+      `✅ Bot mode set to *${input.toUpperCase()}*`
+    );
   }
 
-  // 📊 SHOW CURRENT MODE
+  // SHOW CURRENT MODE
   const mode = db.get(message.sessionId, key, "public");
   return message.send(
-    `⚙️ *Bot Mode*\n` +
-    `Current: ${mode === "private" ? "🔒 PRIVATE" : "🌍 PUBLIC"}\n\n` +
-    `Use:\n` +
-    `• mode private\n` +
-    `• mode public`
+    `⚙️ Bot Mode\nCurrent: ${
+      mode === "private" ? "🔒 PRIVATE" : "🌍 PUBLIC"
+    }\n\nUse:\n• mode private\n• mode public`
   );
 });
