@@ -1,71 +1,98 @@
-import { Module } from "../lib/plugins.js";
-import axios from "axios";
-
-const SEARCH_API = "https://api.zaynix.biz.id/search/youtube";
-const DOWNLOAD_API = "https://api-aswin-sparky.koyeb.app/api/downloader/song";
-
+/* ----------------- PLAY (MP3 | API BASED | FIXED) ----------------- */
 Module({
-  command: "bal",
-  package: "media",
-  description: "Play song (Search API + Download API)",
+  command: "bay",
+  package: "downloader",
+  description: "Play song using Search API + Download API (MP3)",
 })(async (message, match) => {
-  const input = match?.trim();
-  if (!input) return message.reply("❌ Song name বা YouTube link দাও");
-
-  let ytLink;
-  let title = "Playing song";
+  const q = (match || "").trim();
+  if (!q)
+    return message.send(
+      "🎵 Please provide a song name or YouTube link!\n\nExample: .play tomake chai"
+    );
 
   try {
-    // 🔗 URL directly
-    if (input.startsWith("http")) {
-      ytLink = input;
-    } 
-    // 🔍 Name → Search API
-    else {
-      const searchRes = await axios.get(SEARCH_API, {
-        params: { q: input },
-      });
+    await message.react("⏳");
 
-      if (
-        !searchRes.data.status ||
-        !searchRes.data.result ||
-        !searchRes.data.result.length
-      ) {
-        return message.reply("❌ Song পাওয়া যায়নি");
+    let ytLink = q;
+    let title = q;
+    let thumbnail;
+
+    const urlRegex = /(?:youtube\.com\/.*v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+
+    // 🔍 NAME → SEARCH API
+    if (!urlRegex.test(q)) {
+      await message.react("🔍");
+
+      const search = await axios.get(
+        "https://api.zaynix.biz.id/search/youtube",
+        { params: { q } }
+      );
+
+      if (!search.data?.status || !search.data.result?.length) {
+        await message.react("❌");
+        return message.send("❌ Song not found.");
       }
 
-      const first = searchRes.data.result[0];
+      const first = search.data.result[0];
       ytLink = first.link;
       title = first.title;
+      thumbnail = first.imageUrl;
     }
 
-    // 🎧 Downloader API
-    const downRes = await axios.get(DOWNLOAD_API, {
-      params: { search: ytLink },
-    });
+    // 🎧 DOWNLOAD API
+    await message.react("⬇️");
 
-    if (!downRes.data.status || !downRes.data.data?.url) {
-      return message.reply("❌ Download failed");
+    const down = await axios.get(
+      "https://api-aswin-sparky.koyeb.app/api/downloader/song",
+      { params: { search: ytLink } }
+    );
+
+    if (!down.data?.status || !down.data.data?.url) {
+      await message.react("❌");
+      return message.send("❌ Download failed.");
     }
 
-    const audioUrl = downRes.data.data.url;
-    const songTitle = downRes.data.data.title || title;
+    const audioUrl = down.data.data.url;
+    const songTitle = down.data.data.title || title;
 
-    // ⬇️ Stream audio
-    const audioStream = await axios.get(audioUrl, {
-      responseType: "stream",
-    });
+    // ⬇️ TEMP DOWNLOAD (same as your old working method)
+    const tempPath = await downloadToTemp(audioUrl, ".mp3");
+    const buffer = fs.readFileSync(tempPath);
 
-    await message.reply(
-      { stream: audioStream.data },
-      "audio",
+    // 🖼️ externalAdReply (same style)
+    const contextInfo = {};
+    if (thumbnail) {
+      contextInfo.externalAdReply = {
+        title: songTitle,
+        body: "YouTube MP3",
+        thumbnail: await axios
+          .get(thumbnail, { responseType: "arraybuffer" })
+          .then((r) => Buffer.from(r.data))
+          .catch(() => undefined),
+        sourceUrl: ytLink,
+        mediaType: 2,
+      };
+    }
+
+    // 🎵 SEND MP3 (NOT DOCUMENT)
+    await message.conn.sendMessage(
+      message.from,
       {
+        audio: buffer,
         mimetype: "audio/mpeg",
-        caption: `🎵 *${songTitle}*`,
+        fileName: `${songTitle.replace(/[^\w\s]/gi, "")}.mp3`,
+        contextInfo,
+      },
+      {
+        quoted: makeGiftQuote("𝐒uɱꪸ๏η 𝐃ɛ̚𝐯'ʬ 合", message.bot),
       }
     );
+
+    await message.react("✅");
+    safeUnlink(tempPath);
   } catch (err) {
     console.error("PLAY ERROR:", err);
-    message.reply("❌ Error while playing song");
+    await message.react("❌");
+    return message.send("❌ Something went wrong while playing the song.");
   }
 });
