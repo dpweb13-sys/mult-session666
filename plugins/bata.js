@@ -1,16 +1,18 @@
 import yts from "yt-search";
-import { createStream } from "yt-streamer";
+import ytdl from "ytdl-core";
 import fs from "fs";
 import path from "path";
 import { Module } from "../lib/plugins.js";
 
-const tempDir = "./temp";
+const __dirname = process.cwd();
+const tempDir = path.join(__dirname, "temp");
+
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
 Module({
-  command: "bata",
+  command: "play",
   package: "youtube",
-  description: "Play song from YouTube (search + audio)",
+  description: "Search YouTube and play audio",
 })(async (message, match) => {
   try {
     if (!match) {
@@ -21,37 +23,37 @@ Module({
 
     await message.react("🔍");
 
-    // 1️⃣ YouTube Search
+    // 🔍 Search
     const res = await yts(match);
-    if (!res.videos || !res.videos.length) {
+    if (!res.videos || res.videos.length === 0) {
       return message.send("❌ Kono result paoa jay nai");
     }
 
     const v = res.videos[0];
 
-    // 2️⃣ Send info first
-    const caption = `
+    // 📄 Info message
+    await message.send({
+      image: { url: v.thumbnail },
+      caption: `
 🎵 *Now Playing*
 
 📌 *Title:* ${v.title}
 👤 *Channel:* ${v.author.name}
 ⏱️ *Duration:* ${v.timestamp}
 👁️ *Views:* ${v.views.toLocaleString()}
-📅 *Uploaded:* ${v.ago}
 
-⬇️ *Downloading audio...*
-    `.trim();
-
-    await message.send({
-      image: { url: v.thumbnail },
-      caption,
+⬇️ Downloading audio...
+      `.trim(),
     });
 
-    // 3️⃣ Audio Download (stream)
-    await message.react("⬇️");
-
+    // 🎧 Download audio
     const audioPath = path.join(tempDir, `${Date.now()}.mp3`);
-    const stream = await createStream(v.url, { type: "audio" });
+
+    const stream = ytdl(v.url, {
+      filter: "audioonly",
+      quality: "highestaudio",
+      highWaterMark: 1 << 25,
+    });
 
     const write = fs.createWriteStream(audioPath);
     stream.pipe(write);
@@ -59,7 +61,7 @@ Module({
     write.on("finish", async () => {
       const size = fs.statSync(audioPath).size;
 
-      // WhatsApp audio limit ~16MB
+      // WhatsApp audio limit (~16MB)
       if (size > 16 * 1024 * 1024) {
         fs.unlinkSync(audioPath);
         return message.send("❌ Audio size WhatsApp limit cross korse");
@@ -74,6 +76,12 @@ Module({
       fs.unlinkSync(audioPath);
       await message.react("🎧");
     });
+
+    stream.on("error", (err) => {
+      console.error("Stream error:", err);
+      message.send("⚠️ Audio download error");
+    });
+
   } catch (err) {
     console.error("[PLAY PLUGIN ERROR]", err);
     await message.send("⚠️ Error hoise, abar try koro");
