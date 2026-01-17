@@ -8,7 +8,7 @@ const tempDir = "./temp";
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
 Module({
-  command: "play",
+  command: "bata",
   package: "youtube",
   description: "Play song from YouTube (search + audio)",
 })(async (message, match) => {
