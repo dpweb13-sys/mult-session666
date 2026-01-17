@@ -52,7 +52,7 @@
     "sharp": "^0.34.5",
     "webp-converter": "^2.3.3",
     "yt-search": "latest",
-    "yt-streamer": "^6.7.23"
+    "yt-streamer": "^6.7.23",
     "ytdl-core": "^4.11.5"
   }
 }
