@@ -1,80 +1,75 @@
+import axios from "axios";
 import yts from "yt-search";
-import ytdl from "@distube/ytdl-core";
-import fs from "fs";
-import path from "path";
 import { Module } from "../lib/plugins.js";
 
-const tempDir = "./temp";
-if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-
 Module({
-  command: "bat",
+  command: "play",
   package: "youtube",
-  description: "Play song from YouTube",
+  description: "Play song from YouTube (API based)",
 })(async (message, match) => {
   try {
     if (!match) {
-      return message.send("❌ Song name dao\n\n.play kesariya");
+      return message.send(
+        "❌ *Song name dao*\n\nExample:\n.play love nwantiti"
+      );
     }
 
+    // 🔍 Search reaction
     await message.react("🔍");
 
+    // 1️⃣ YouTube search
     const res = await yts(match);
-    if (!res.videos.length) {
-      return message.send("❌ Kono result paoa jay nai");
+    if (!res.videos || res.videos.length === 0) {
+      return message.send("❌ Kono video paoa jay nai");
     }
 
-    const v = res.videos[0];
+    const video = res.videos[0];
 
+    // 2️⃣ Send info message
     await message.send({
-      image: { url: v.thumbnail },
+      image: { url: video.thumbnail },
       caption: `
 🎵 *Now Playing*
 
-📌 ${v.title}
-👤 ${v.author.name}
-⏱️ ${v.timestamp}
+📌 *Title:* ${video.title}
+👤 *Channel:* ${video.author.name}
+⏱️ *Duration:* ${video.timestamp}
 
-⬇️ Downloading audio...
+⬇️ *Downloading audio...*
       `.trim(),
     });
 
-    const audioPath = path.join(tempDir, `${Date.now()}.mp3`);
+    // 3️⃣ Call your API with YouTube link
+    const apiUrl =
+      "https://api-aswin-sparky.koyeb.app/api/downloader/song?search=" +
+      encodeURIComponent(video.url);
 
-    const stream = ytdl(v.url, {
-      filter: "audioonly",
-      quality: "highestaudio",
-      highWaterMark: 1 << 25
-    });
+    const { data } = await axios.get(apiUrl, { timeout: 30000 });
 
-    const write = fs.createWriteStream(audioPath);
-    stream.pipe(write);
+    if (!data || !data.status || !data.data?.url) {
+      return message.send("❌ Audio download failed");
+    }
 
-    write.on("finish", async () => {
-      const size = fs.statSync(audioPath).size;
-
-      if (size > 16 * 1024 * 1024) {
-        fs.unlinkSync(audioPath);
-        return message.send("❌ Audio WhatsApp limit cross korse");
+    // 4️⃣ Send audio using direct URL (RAM safe)
+    await message.send({
+      audio: { url: data.data.url },
+      mimetype: "audio/mpeg",
+      fileName: `${data.data.title || video.title}.mp3`,
+      contextInfo: {
+        externalAdReply: {
+          title: data.data.title || video.title,
+          body: "YouTube Audio",
+          mediaType: 2,
+          sourceUrl: video.url,
+          thumbnailUrl: video.thumbnail
+        }
       }
-
-      await message.send({
-        audio: fs.readFileSync(audioPath),
-        mimetype: "audio/mpeg",
-        fileName: `${v.title}.mp3`
-      });
-
-      fs.unlinkSync(audioPath);
-      await message.react("🎧");
     });
 
-    stream.on("error", e => {
-      console.error("Stream error:", e);
-      message.send("⚠️ Stream error");
-    });
+    await message.react("🎧");
 
-  } catch (e) {
-    console.error("[PLAY ERROR]", e);
-    message.send("⚠️ Play failed");
+  } catch (err) {
+    console.error("[PLAY API ERROR]", err);
+    await message.send("⚠️ Play failed, abar try koro");
   }
 });
