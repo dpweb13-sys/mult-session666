@@ -10,7 +10,7 @@ const tempDir = path.join(__dirname, "temp");
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
 Module({
-  command: "play",
+  command: "bat",
   package: "youtube",
   description: "Search YouTube and play audio",
 })(async (message, match) => {
